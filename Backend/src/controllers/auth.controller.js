@@ -74,10 +74,10 @@ const register = async (req, res) => {
 
 const login = async (req, res) => {
   try {
-    const { tenantId, email, passwordHash } = req.body;
+    const { email, passwordHash } = req.body;
 
     const existingUser = await user.findOne({
-      where: { tenantId, email },
+      where: { email },
     });
 
     if (!existingUser) {
@@ -88,7 +88,7 @@ const login = async (req, res) => {
 
     const isPasswordValid = await bcrypt.compare(
       passwordHash,
-      existingUser.passwordHash
+      existingUser.passwordHash,
     );
 
     if (!isPasswordValid) {
@@ -98,6 +98,7 @@ const login = async (req, res) => {
     }
 
     existingUser.lastLoginAt = new Date();
+
     await existingUser.save();
 
     const token = jwt.sign(
@@ -109,7 +110,7 @@ const login = async (req, res) => {
       process.env.JWT_SECRET,
       {
         expiresIn: "15m",
-      }
+      },
     );
 
     const rawRefreshToken = crypto.randomBytes(40).toString("hex");
@@ -125,12 +126,14 @@ const login = async (req, res) => {
 
     res.cookie("token", token, {
       httpOnly: true,
+      secure:true,
       sameSite: "strict",
       maxAge: 15 * 60 * 1000,
     });
 
     res.cookie("refreshToken", rawRefreshToken, {
       httpOnly: true,
+      secure:true,
       sameSite: "strict",
       maxAge: 7 * 24 * 60 * 60 * 1000,
     });
@@ -205,7 +208,7 @@ const refreshToken = async (req, res) => {
       process.env.JWT_SECRET,
       {
         expiresIn: "15m",
-      }
+      },
     );
 
     const newRawRefreshToken = crypto.randomBytes(40).toString("hex");
@@ -221,12 +224,14 @@ const refreshToken = async (req, res) => {
 
     res.cookie("token", newToken, {
       httpOnly: true,
+      secure:true,
       sameSite: "strict",
       maxAge: 15 * 60 * 1000,
     });
 
     res.cookie("refreshToken", newRawRefreshToken, {
       httpOnly: true,
+      secure:true,
       sameSite: "strict",
       maxAge: 7 * 24 * 60 * 60 * 1000,
     });
@@ -259,7 +264,7 @@ const logout = async (req, res) => {
             tokenHash,
             revokedAt: null,
           },
-        }
+        },
       );
     }
 
@@ -277,4 +282,39 @@ const logout = async (req, res) => {
   }
 };
 
-module.exports = { register, login, refreshToken, logout };
+const dashboard = async (req, res) => {
+  try {
+    const existingUser = await user.findByPk(req.user.id, {
+      attributes: {
+        exclude: ["passwordHash"],
+      },
+    });
+
+    if (!existingUser) {
+      return res.status(404).json({
+        message: "User not found",
+      });
+    }
+
+    return res.status(200).json({
+      message: "Current user fetched successfully",
+      user: {
+        id: existingUser.id,
+        tenantId: existingUser.tenantId,
+        name: existingUser.name,
+        email: existingUser.email,
+        username: existingUser.username,
+        teamId: existingUser.teamId,
+        managerId: existingUser.managerId,
+        role: existingUser.role,
+      },
+    });
+  } catch (error) {
+    return res.status(500).json({
+      message: "Error fetching current user",
+      error: error.message,
+    });
+  }
+};
+
+module.exports = { register, login, refreshToken, logout, dashboard };

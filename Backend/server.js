@@ -1,5 +1,6 @@
 const app = require('./src/app');
 const { sequelize } = require('./src/models/index.model');
+const seedSettings = require("./src/scripts/seedSettings");
 
 const verifyConnection = async () => {
   try {
@@ -14,7 +15,7 @@ const verifyConnection = async () => {
 };
 
 verifyConnection();
-
+seedSettings();
 app.listen(3000, () => {
   console.log("Server is running on port 3000");
 });
