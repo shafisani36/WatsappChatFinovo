@@ -1,155 +1,214 @@
-import React, { useEffect, useState } from "react";
-import { Plus, Calendar, ArrowRight, CheckCircle2 } from "lucide-react";
+import { useEffect, useState } from "react";
+import toast from "react-hot-toast";
+
 import api from "../api/axios";
-import { getSocket } from "../api/socket";
-import { Badge, PointsBadge } from "../components/Badge";
-import TopBar from "../components/TopBar";
-import { useAuth } from "../context/AuthContext";
-import { isManagerial } from "../constants/roles";
+import { useAuth } from "../contexts/AuthContext";
 
 const STATUS_FLOW = ["Pending", "In Progress", "Completed"];
-const STATUS_BORDER = {
-  Pending: "border-l-slate-300",
-  "In Progress": "border-l-blue-400",
-  Completed: "border-l-emerald-400",
+
+const statusBadgeClass = (status) => {
+  if (status === "Completed") return "badge badge-active";
+  if (status === "In Progress") return "badge badge-paused";
+  return "badge badge-completed";
 };
 
-export default function Tasks() {
-  const { user, updateUserPoints } = useAuth();
-  const managerial = isManagerial(user?.role);
-  const [tasks, setTasks] = useState([]);
-  const [employees, setEmployees] = useState([]);
-  const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState({ title: "", description: "", points: 2, assignedToId: "", dueDate: "" });
-  const [error, setError] = useState("");
+const Tasks = () => {
+  const { user, isManager, fetchUser } = useAuth();
 
-  const load = async () => {
-    const { data } = await api.get("/tasks");
-    setTasks(data);
-    if (managerial) {
-      const { data: users } = await api.get("/users");
-      setEmployees(users.filter((u) => u.role !== "ADMIN"));
+  const [tasks, setTasks] = useState([]);
+  const [assignees, setAssignees] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [showForm, setShowForm] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [form, setForm] = useState({
+    title: "",
+    description: "",
+    points: 2,
+    assignedToId: "",
+    dueDate: "",
+  });
+
+  const loadTasks = async () => {
+    try {
+      const response = await api.get("/tasks");
+      setTasks(response.data.data);
+    } catch (error) {
+      toast.error("Could not load tasks");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const loadAssignees = async () => {
+    try {
+      const response = await api.get("/tasks/assignable-users");
+      setAssignees(response.data.data);
+    } catch (error) {
+      // Non-managers aren't allowed to see this list; safe to ignore.
     }
   };
 
   useEffect(() => {
-    load();
-    const socket = getSocket();
-    const onUpdate = () => load();
-    socket.on("task:updated", onUpdate);
-    return () => socket.off("task:updated", onUpdate);
+    loadTasks();
+    if (isManager) {
+      loadAssignees();
+    }
+
+    const poll = setInterval(loadTasks, 10000);
+    return () => clearInterval(poll);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [isManager]);
 
-  const update = (key) => (e) => setForm((f) => ({ ...f, [key]: e.target.value }));
+  const updateField = (key) => (event) => {
+    setForm((prev) => ({ ...prev, [key]: event.target.value }));
+  };
 
-  const submit = async (e) => {
-    e.preventDefault();
-    setError("");
+  const submitTask = async (event) => {
+    event.preventDefault();
+    setSubmitting(true);
+
     try {
       await api.post("/tasks", form);
+      toast.success("Task created");
       setForm({ title: "", description: "", points: 2, assignedToId: "", dueDate: "" });
       setShowForm(false);
-      load();
-    } catch (err) {
-      setError(err.response?.data?.message || "Could not create task");
+      loadTasks();
+    } catch (error) {
+      toast.error(error.response?.data?.message || "Could not create task");
+    } finally {
+      setSubmitting(false);
     }
   };
 
   const nextStatus = (current) => STATUS_FLOW[Math.min(STATUS_FLOW.indexOf(current) + 1, 2)];
 
   const advanceStatus = async (task) => {
-    const newStatus = nextStatus(task.status);
-    const { data } = await api.patch(`/tasks/${task.id}/status`, { status: newStatus });
-    if (newStatus === "Completed" && !managerial && data.assignee?.id === user.id) {
-      updateUserPoints(data.assignee.points);
+    try {
+      const response = await api.patch(`/tasks/${task.id}/status`, {
+        status: nextStatus(task.status),
+      });
+
+      if (response.data.data.status === "Completed") {
+        toast.success(`+${task.points} points earned!`);
+      }
+
+      if (task.assignee?.id === user.id) {
+        fetchUser();
+      }
+
+      loadTasks();
+    } catch (error) {
+      toast.error(error.response?.data?.message || "Could not update task");
     }
-    load();
   };
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-start justify-between">
-        <TopBar title={managerial ? "Tasks" : "My Tasks"} subtitle={managerial ? "Create and assign work to your team" : "Complete tasks to earn points"} />
-        {managerial && (
-          <button
-            onClick={() => setShowForm((s) => !s)}
-            className="flex items-center gap-1.5 bg-brand-600 hover:bg-brand-700 text-white text-sm font-medium px-4 py-2.5 rounded-lg shadow-sm shadow-brand-200 shrink-0"
-          >
-            <Plus size={16} strokeWidth={2.5} />
-            New Task
+    <div className="team-page">
+      <div className="page-header animate-in">
+        <div>
+          <h1>{isManager ? "Tasks" : "My Tasks"}</h1>
+          <p>{isManager ? "Create and assign work to your team" : "Complete tasks to earn points"}</p>
+        </div>
+
+        {isManager && (
+          <button className="auth-button" style={{ width: "auto", padding: "10px 18px" }} onClick={() => setShowForm((s) => !s)}>
+            + New Task
           </button>
         )}
       </div>
 
       {showForm && (
-        <form onSubmit={submit} className="bg-white border border-slate-200 rounded-xl p-5 space-y-4 shadow-sm">
-          {error && <p className="text-sm text-red-600 bg-red-50 border border-red-100 rounded-lg px-3 py-2">{error}</p>}
-          <input required placeholder="Task title" value={form.title} onChange={update("title")} className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent" />
-          <textarea placeholder="Description" value={form.description} onChange={update("description")} rows={3} className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent" />
-          <div className="grid grid-cols-3 gap-4">
-            <div>
-              <label className="block text-xs font-medium text-slate-500 mb-1">Points (workload)</label>
-              <select value={form.points} onChange={update("points")} className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm">
+        <form onSubmit={submitTask} className="dashboard-card animate-card" style={{ marginBottom: 20 }}>
+          <div className="form-group">
+            <label>Task title</label>
+            <input required placeholder="e.g. Fix login bug" value={form.title} onChange={updateField("title")} />
+          </div>
+
+          <div className="form-group">
+            <label>Description</label>
+            <input placeholder="Optional details" value={form.description} onChange={updateField("description")} />
+          </div>
+
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 16 }}>
+            <div className="form-group">
+              <label>Points (workload)</label>
+              <select value={form.points} onChange={updateField("points")}>
                 <option value={2}>2 — Light</option>
                 <option value={3}>3 — Medium</option>
                 <option value={4}>4 — Heavy</option>
               </select>
             </div>
-            <div>
-              <label className="block text-xs font-medium text-slate-500 mb-1">Assign to</label>
-              <select required value={form.assignedToId} onChange={update("assignedToId")} className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm">
+
+            <div className="form-group">
+              <label>Assign to</label>
+              <select required value={form.assignedToId} onChange={updateField("assignedToId")}>
                 <option value="">Select...</option>
-                {employees.map((e) => <option key={e.id} value={e.id}>{e.name}</option>)}
+                {assignees.map((a) => (
+                  <option key={a.id} value={a.id}>
+                    {a.name}
+                  </option>
+                ))}
               </select>
             </div>
-            <div>
-              <label className="block text-xs font-medium text-slate-500 mb-1">Due date</label>
-              <input type="date" value={form.dueDate} onChange={update("dueDate")} className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" />
+
+            <div className="form-group">
+              <label>Due date</label>
+              <input type="date" value={form.dueDate} onChange={updateField("dueDate")} />
             </div>
           </div>
-          <button type="submit" className="w-full bg-brand-600 hover:bg-brand-700 text-white text-sm font-medium py-2.5 rounded-lg">
-            Create Task
+
+          <button className="auth-button" type="submit" disabled={submitting}>
+            {submitting ? "Creating..." : "Create Task"}
           </button>
         </form>
       )}
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {tasks.map((task) => (
-          <div key={task.id} className={`bg-white border border-slate-200 border-l-4 ${STATUS_BORDER[task.status]} rounded-xl p-5 hover:shadow-md hover:shadow-slate-100 transition-shadow`}>
-            <div className="flex items-start justify-between gap-2">
-              <h3 className="font-semibold text-slate-900">{task.title}</h3>
-              <PointsBadge points={task.points} />
-            </div>
-            {task.description && <p className="text-sm text-slate-500 mt-1.5">{task.description}</p>}
+      {loading ? (
+        <div className="loading-card">
+          <div className="loader-spinner"></div>
+          <p>Loading tasks...</p>
+        </div>
+      ) : tasks.length === 0 ? (
+        <div className="empty-card animate-card">
+          <div className="empty-icon">▤</div>
+          <h3>No tasks yet</h3>
+          <p>{isManager ? "Create a task to assign work to your team." : "You have no tasks assigned right now."}</p>
+        </div>
+      ) : (
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 16 }}>
+          {tasks.map((task) => (
+            <div key={task.id} className="dashboard-card animate-card">
+              <div className="card-header">
+                <h2>{task.title}</h2>
+                <span className="badge badge-paused">{task.points} pts</span>
+              </div>
 
-            <div className="flex items-center justify-between mt-4 text-xs text-slate-500">
-              {managerial ? <span>Assigned to <span className="text-slate-700 font-medium">{task.assignee?.name}</span></span> : <span>&nbsp;</span>}
-              {task.dueDate && (
-                <span className="flex items-center gap-1">
-                  <Calendar size={12} />
-                  {new Date(task.dueDate).toLocaleDateString()}
-                </span>
-              )}
-            </div>
+              {task.description && <p style={{ color: "var(--text-secondary)", fontSize: 12, marginBottom: 12 }}>{task.description}</p>}
 
-            <div className="flex items-center justify-between mt-4 pt-4 border-t border-slate-100">
-              <Badge text={task.status} />
-              {task.status !== "Completed" && (managerial || task.assignee?.id === user.id) && (
-                <button
-                  onClick={() => advanceStatus(task)}
-                  className="flex items-center gap-1 text-xs font-semibold text-white bg-slate-800 hover:bg-slate-900 px-3 py-1.5 rounded-lg"
-                >
-                  {task.status === "Pending" ? "Start" : "Complete"}
-                  {task.status === "Pending" ? <ArrowRight size={13} /> : <CheckCircle2 size={13} />}
-                </button>
-              )}
-              {task.status === "Completed" && <span className="text-xs font-semibold text-emerald-600">+{task.points} pts earned</span>}
+              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, color: "var(--text-muted)", marginBottom: 14 }}>
+                {isManager && <span>Assigned to <strong style={{ color: "var(--text)" }}>{task.assignee?.name}</strong></span>}
+                {task.dueDate && <span>Due {new Date(task.dueDate).toLocaleDateString()}</span>}
+              </div>
+
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", paddingTop: 14, borderTop: "1px solid var(--border-light)" }}>
+                <span className={statusBadgeClass(task.status)}>{task.status}</span>
+
+                {task.status !== "Completed" && (isManager || task.assignee?.id === user.id) && (
+                  <button className="refresh-button" onClick={() => advanceStatus(task)}>
+                    {task.status === "Pending" ? "Start" : "Complete"}
+                  </button>
+                )}
+
+                {task.status === "Completed" && (
+                  <span style={{ fontSize: 11, fontWeight: 600, color: "var(--green)" }}>+{task.points} pts earned</span>
+                )}
+              </div>
             </div>
-          </div>
-        ))}
-        {tasks.length === 0 && <p className="text-sm text-slate-500">No tasks yet.</p>}
-      </div>
+          ))}
+        </div>
+      )}
     </div>
   );
-}
+};
+
+export default Tasks;
