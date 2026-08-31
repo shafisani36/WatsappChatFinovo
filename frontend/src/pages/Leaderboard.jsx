@@ -1,86 +1,128 @@
-import React, { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
+
 import api from "../api/axios";
-import { getSocket } from "../api/socket";
-import { RoleBadge } from "../components/Badge";
-import TopBar from "../components/TopBar";
 
-function initials(name = "") {
-  return name.split(" ").map((p) => p[0]).slice(0, 2).join("").toUpperCase();
-}
+const initials = (name = "") =>
+  name
+    .split(" ")
+    .map((p) => p[0])
+    .slice(0, 2)
+    .join("")
+    .toUpperCase();
 
-const rankStyle = (rank) => {
-  if (rank === 1) return "bg-gradient-to-br from-amber-400 to-amber-500 text-white";
-  if (rank === 2) return "bg-gradient-to-br from-slate-300 to-slate-400 text-white";
-  if (rank === 3) return "bg-gradient-to-br from-orange-300 to-orange-400 text-white";
-  return "bg-slate-100 text-slate-500";
+const rankBg = (rank) => {
+  if (rank === 1) return "#f59e0b";
+  if (rank === 2) return "#94a3b8";
+  if (rank === 3) return "#fb923c";
+  return "#e2e8f0";
 };
 
-const barStyle = (rank) => {
-  if (rank === 1) return "bg-gradient-to-r from-amber-400 to-amber-500";
-  if (rank === 2) return "bg-gradient-to-r from-slate-400 to-slate-500";
-  if (rank === 3) return "bg-gradient-to-r from-orange-400 to-orange-500";
-  return "bg-gradient-to-r from-brand-500 to-brand-600";
-};
-
-export default function Leaderboard() {
+const Leaderboard = () => {
   const [board, setBoard] = useState([]);
   const [loading, setLoading] = useState(true);
 
   const load = async () => {
-    const { data } = await api.get("/leaderboard");
-    setBoard(data);
-    setLoading(false);
+    try {
+      const response = await api.get("/leaderboard");
+      setBoard(response.data.data);
+    } catch (error) {
+      setBoard([]);
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => {
     load();
-    const socket = getSocket();
-    const onUpdate = () => load();
-    socket.on("leaderboard:updated", onUpdate);
-    return () => socket.off("leaderboard:updated", onUpdate);
+    const poll = setInterval(load, 10000);
+    return () => clearInterval(poll);
   }, []);
-
-  if (loading) return <p className="text-slate-500">Loading leaderboard...</p>;
 
   const maxPoints = Math.max(...board.map((b) => b.points), 1);
 
   return (
-    <div className="space-y-6">
-      <TopBar title="Leaderboard" subtitle="Ranked by total points earned from completed tasks" />
-
-      {board.length === 0 ? (
-        <p className="text-sm text-slate-500">No one has completed a task yet.</p>
-      ) : (
-        <div className="bg-white border border-slate-200 rounded-xl p-6 space-y-5 shadow-sm">
-          {board.map((entry) => {
-            const widthPct = Math.max((entry.points / maxPoints) * 100, 4);
-            return (
-              <div key={entry.id} className="flex items-center gap-4">
-                <div className={`w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold shrink-0 ${rankStyle(entry.rank)}`}>
-                  {entry.rank}
-                </div>
-
-                <div className="w-10 h-10 rounded-full bg-slate-100 text-slate-600 flex items-center justify-center text-xs font-bold shrink-0 ring-2 ring-slate-50">
-                  {initials(entry.name)}
-                </div>
-
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center justify-between mb-1.5 gap-2">
-                    <div className="flex items-center gap-2 min-w-0">
-                      <span className="text-sm font-semibold text-slate-800 truncate">{entry.name}</span>
-                      <RoleBadge role={entry.role} />
-                    </div>
-                    <span className="text-xs text-slate-500 font-medium shrink-0">{entry.points} pts · {entry.completedCount} completed</span>
-                  </div>
-                  <div className="h-2.5 bg-slate-100 rounded-full overflow-hidden">
-                    <div className={`h-full rounded-full transition-all duration-700 ease-out ${barStyle(entry.rank)}`} style={{ width: `${widthPct}%` }} />
-                  </div>
-                </div>
-              </div>
-            );
-          })}
+    <div className="team-page">
+      <div className="page-header animate-in">
+        <div>
+          <h1>Leaderboard</h1>
+          <p>Ranked by total points earned from completed tasks</p>
         </div>
+      </div>
+
+      {loading ? (
+        <div className="loading-card">
+          <div className="loader-spinner"></div>
+          <p>Loading leaderboard...</p>
+        </div>
+      ) : board.length === 0 ? (
+        <div className="empty-card animate-card">
+          <div className="empty-icon">♧</div>
+          <h3>No one has scored yet</h3>
+          <p>Points will show up here once tasks start getting completed.</p>
+        </div>
+      ) : (
+        <section className="history-card animate-card">
+          <div className="table-header">
+            <div>
+              <h2>Standings</h2>
+              <p>{board.length} people on the board</p>
+            </div>
+          </div>
+
+          <div style={{ padding: "20px 24px", display: "flex", flexDirection: "column", gap: 18 }}>
+            {board.map((entry) => {
+              const widthPct = Math.max((entry.points / maxPoints) * 100, 4);
+              return (
+                <div key={entry.id} style={{ display: "flex", alignItems: "center", gap: 14 }}>
+                  <div
+                    style={{
+                      width: 30,
+                      height: 30,
+                      borderRadius: "50%",
+                      background: rankBg(entry.rank),
+                      color: "white",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      fontSize: 12,
+                      fontWeight: 700,
+                      flexShrink: 0,
+                    }}
+                  >
+                    {entry.rank}
+                  </div>
+
+                  <div className="employee-avatar" style={{ flexShrink: 0 }}>
+                    {initials(entry.name)}
+                  </div>
+
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6, gap: 8 }}>
+                      <span style={{ fontSize: 13, fontWeight: 600, color: "var(--text)" }}>{entry.name}</span>
+                      <span style={{ fontSize: 11, color: "var(--text-secondary)" }}>
+                        {entry.points} pts &middot; {entry.completedCount} completed
+                      </span>
+                    </div>
+                    <div style={{ height: 8, background: "var(--border-light)", borderRadius: 999, overflow: "hidden" }}>
+                      <div
+                        style={{
+                          height: "100%",
+                          width: `${widthPct}%`,
+                          background: "var(--primary)",
+                          borderRadius: 999,
+                          transition: "width 0.5s ease",
+                        }}
+                      />
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </section>
       )}
     </div>
   );
-}
+};
+
+export default Leaderboard;

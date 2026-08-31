@@ -1,0 +1,45 @@
+{
+  "name": "trackpulse-desktop",
+  "version": "1.0.0",
+  "description": "Background window and idle time tracking desktop agent",
+  "main": "main.js",
+  "author": "TrackPulse",
+  "scripts": {
+    "start": "electron .",
+    "build:win": "electron-builder --win nsis"
+  },
+  "dependencies": {
+    "axios": "^1.6.8",
+    "get-windows": "^9.3.0",
+    "ps-list": "^9.0.0"
+  },
+  "devDependencies": {
+    "electron": "^28.2.0",
+    "electron-builder": "^24.9.0"
+  },
+  "build": {
+    "appId": "com.trackpulse.agent",
+    "productName": "TrackPulse Agent",
+    "files": [
+      "main.js",
+      "icon.png",
+      "node_modules/**/*"
+    ],
+    "directories": {
+      "output": "dist"
+    },
+    "win": {
+      "target": [
+        { "target": "nsis", "arch": ["x64"] }
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "TrackPulse Agent"
+    }
+  }
+}

@@ -1,111 +1,450 @@
-import React, { useEffect, useState } from "react";
-import { ListChecks, Clock, Activity, CheckCircle2 } from "lucide-react";
-import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from "recharts";
-import api from "../api/axios";
-import { getSocket } from "../api/socket";
-import StatCard from "../components/StatCard";
-import TopBar from "../components/TopBar";
-import { Badge, PointsBadge, RoleBadge } from "../components/Badge";
+import {
+  useEffect,
+  useState,
+} from "react";
+import { Link } from "react-router-dom";
 
-const STATUS_COLORS = { Pending: "#94a3b8", "In Progress": "#3b82f6", Completed: "#10b981" };
+import api from "../api/axios";
+
+const formatDuration = (
+  seconds
+) => {
+  const value =
+    Number(seconds) || 0;
+
+  if (value <= 0) {
+    return "00:00:00";
+  }
+
+  const hours =
+    Math.floor(value / 3600);
+
+  const minutes =
+    Math.floor(
+      (value % 3600) / 60
+    );
+
+  const secs =
+    Math.floor(value % 60);
+
+  return `${String(hours).padStart(
+    2,
+    "0"
+  )}:${String(minutes).padStart(
+    2,
+    "0"
+  )}:${String(secs).padStart(
+    2,
+    "0"
+  )}`;
+};
 
 export default function Dashboard() {
-  const [tasks, setTasks] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [dailyData, setDailyData] =
+    useState(null);
 
-  const load = async () => {
-    const { data } = await api.get("/tasks");
-    setTasks(data);
-    setLoading(false);
-  };
+  const [history, setHistory] =
+    useState([]);
+
+  const [loading, setLoading] =
+    useState(true);
+
+  const fetchDashboard =
+    async () => {
+      try {
+        const today =
+          new Date()
+            .toISOString()
+            .split("T")[0];
+
+        const [
+          reportResponse,
+          historyResponse,
+        ] = await Promise.all([
+          api.get(
+            `/reports/daily?date=${today}`
+          ),
+
+          api.get(
+            "/sessions/history?limit=5&offset=0"
+          ),
+        ]);
+
+        setDailyData(
+          reportResponse.data?.data ||
+            null
+        );
+
+        setHistory(
+          historyResponse.data?.data
+            ?.sessions || []
+        );
+      } catch (error) {
+        console.error(
+          "Failed to load dashboard:",
+          error
+        );
+      } finally {
+        setLoading(false);
+      }
+    };
 
   useEffect(() => {
-    load();
-    const socket = getSocket();
-    const onUpdate = () => load();
-    socket.on("task:updated", onUpdate);
-    return () => socket.off("task:updated", onUpdate);
+    fetchDashboard();
+
+    const interval =
+      setInterval(
+        fetchDashboard,
+        5000
+      );
+
+    return () =>
+      clearInterval(interval);
   }, []);
 
-  if (loading) return <p className="text-slate-500">Loading...</p>;
+  const productive =
+    Number(
+      dailyData?.workingTime
+    ) || 0;
 
-  const pending = tasks.filter((t) => t.status === "Pending").length;
-  const inProgress = tasks.filter((t) => t.status === "In Progress").length;
-  const completed = tasks.filter((t) => t.status === "Completed").length;
-  const recent = tasks.slice(0, 8);
+  const idle =
+    Number(
+      dailyData?.idleTime
+    ) || 0;
 
-  const chartData = [
-    { name: "Pending", value: pending },
-    { name: "In Progress", value: inProgress },
-    { name: "Completed", value: completed },
-  ].filter((d) => d.value > 0);
+  const nonProductive =
+    Number(
+      dailyData?.nonProductiveTime
+    ) ||
+    0;
+
+  const totalTracked =
+    productive +
+    idle +
+    nonProductive;
+
+  const productivity =
+    totalTracked > 0
+      ? Math.round(
+          (productive /
+            totalTracked) *
+            100
+        )
+      : 0;
+
+  if (loading) {
+    return (
+      <div className="loading-page">
+        <div className="loader-spinner"></div>
+
+        <p>
+          Loading dashboard...
+        </p>
+      </div>
+    );
+  }
 
   return (
-    <div className="space-y-6">
-      <TopBar title="Overview" subtitle="Team activity at a glance" />
+    <div className="dashboard-page">
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <StatCard label="Total Tasks" value={tasks.length} icon={ListChecks} color="brand" />
-        <StatCard label="Pending" value={pending} icon={Clock} color="slate" />
-        <StatCard label="In Progress" value={inProgress} icon={Activity} color="blue" />
-        <StatCard label="Completed" value={completed} icon={CheckCircle2} color="emerald" />
+
+<div className="page-header animate-in">
+  <div>
+    <div className="page-title-row">
+      <h1>Overview</h1>
+      <span className="live-badge">
+        <span className="live-dot"></span>
+        Live
+      </span>
+    </div>
+    <p>Your productivity at a glance</p>
+  </div>
+
+  <Link to="/download-agent" className="tracker-button primary-button" style={{ textDecoration: "none", width: "auto" }}>
+    ⬇ Download Desktop Agent
+  </Link>
+</div>
+
+      <div className="metrics-grid">
+
+        <MetricCard
+          label="Total Tracked"
+          value={formatDuration(
+            totalTracked
+          )}
+          icon="◷"
+        />
+
+        <MetricCard
+          label="Productive Time"
+          value={formatDuration(
+            productive
+          )}
+          variant="success"
+          icon="✓"
+        />
+
+        <MetricCard
+          label="Non-Productive"
+          value={formatDuration(
+            nonProductive
+          )}
+          variant="danger"
+          icon="!"
+        />
+
+        <MetricCard
+          label="Idle Time"
+          value={formatDuration(
+            idle
+          )}
+          variant="warning"
+          icon="◌"
+        />
+
+        <MetricCard
+          label="Productivity"
+          value={`${productivity}%`}
+          variant="success"
+          icon="↗"
+        />
+
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="bg-white border border-slate-200 rounded-xl overflow-hidden lg:col-span-2">
-          <div className="px-5 py-4 border-b border-slate-100">
-            <h2 className="font-semibold text-slate-900">Recent Tasks</h2>
+      <div className="dashboard-grid">
+
+        <section className="dashboard-card animate-card">
+
+          <div className="card-header">
+            <div>
+              <h2>
+                Recent Sessions
+              </h2>
+
+              <p>
+                Your latest tracked sessions
+              </p>
+            </div>
+
+            <div className="card-icon">
+              ◷
+            </div>
           </div>
-          {recent.length === 0 ? (
-            <p className="text-sm text-slate-500 px-5 py-10 text-center">No tasks created yet.</p>
-          ) : (
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="text-left text-slate-500 border-b border-slate-100 bg-slate-50/50">
-                  <th className="px-5 py-3 font-medium">Task</th>
-                  <th className="px-5 py-3 font-medium">Assigned to</th>
-                  <th className="px-5 py-3 font-medium">Points</th>
-                  <th className="px-5 py-3 font-medium">Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {recent.map((t) => (
-                  <tr key={t.id} className="border-b border-slate-50 last:border-0 hover:bg-slate-50/50">
-                    <td className="px-5 py-3 font-medium text-slate-800">{t.title}</td>
-                    <td className="px-5 py-3">
-                      <div className="flex items-center gap-2">
-                        <span className="text-slate-600">{t.assignee?.name}</span>
-                        <RoleBadge role={t.assignee?.role} />
-                      </div>
-                    </td>
-                    <td className="px-5 py-3"><PointsBadge points={t.points} /></td>
-                    <td className="px-5 py-3"><Badge text={t.status} /></td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
-        </div>
 
-        <div className="bg-white border border-slate-200 rounded-xl p-5">
-          <h2 className="font-semibold text-slate-900 mb-2">Status Breakdown</h2>
-          {chartData.length === 0 ? (
-            <p className="text-sm text-slate-500 py-10 text-center">No data yet.</p>
-          ) : (
-            <ResponsiveContainer width="100%" height={220}>
-              <PieChart>
-                <Pie data={chartData} dataKey="value" nameKey="name" innerRadius={45} outerRadius={80} paddingAngle={2}>
-                  {chartData.map((entry) => (
-                    <Cell key={entry.name} fill={STATUS_COLORS[entry.name]} />
-                  ))}
-                </Pie>
-                <Tooltip />
-                <Legend iconType="circle" wrapperStyle={{ fontSize: 12 }} />
-              </PieChart>
-            </ResponsiveContainer>
-          )}
-        </div>
+          <div className="session-list">
+
+            {history.length > 0 ? (
+              history.map(
+                (session) => (
+                  <div
+                    className="session-row"
+                    key={session.id}
+                  >
+
+                    <div className="session-time">
+
+                      <div className="session-icon">
+                        ◷
+                      </div>
+
+                      <div>
+                        <strong>
+                          {new Date(
+                            session.startedAt
+                          ).toLocaleTimeString(
+                            [],
+                            {
+                              hour:
+                                "2-digit",
+                              minute:
+                                "2-digit",
+                            }
+                          )}
+                        </strong>
+
+                        <span>
+                          Session
+                        </span>
+                      </div>
+
+                    </div>
+
+                    <div className="session-duration">
+                      {formatDuration(
+                        session.totalSeconds
+                      )}
+                    </div>
+
+                    <span
+                      className={
+                        session.status ===
+                        "ACTIVE"
+                          ? "status-badge active"
+                          : "status-badge"
+                      }
+                    >
+                      {
+                        session.status
+                      }
+                    </span>
+
+                  </div>
+                )
+              )
+            ) : (
+              <div className="empty-state">
+
+                <div className="empty-icon">
+                  ◷
+                </div>
+
+                <p>
+                  No sessions recorded yet
+                </p>
+
+              </div>
+            )}
+
+          </div>
+
+        </section>
+
+        <section className="dashboard-card productivity-card animate-card">
+
+          <div className="card-header">
+
+            <div>
+              <h2>
+                Productivity
+              </h2>
+
+              <p>
+                Today's performance
+              </p>
+            </div>
+
+            <div className="card-icon">
+              ↗
+            </div>
+
+          </div>
+
+          <div className="productivity-circle">
+
+            <div
+              className="productivity-progress"
+              style={{
+                "--progress": `${
+                  productivity * 3.6
+                }deg`,
+              }}
+            >
+
+              <div className="productivity-inner">
+
+                <strong>
+                  {productivity}%
+                </strong>
+
+                <span>
+                  productive
+                </span>
+
+              </div>
+
+            </div>
+
+          </div>
+
+          <div className="productivity-breakdown">
+
+            <Breakdown
+              label="Productive"
+              value={formatDuration(
+                productive
+              )}
+              type="success"
+            />
+
+            <Breakdown
+              label="Non-Productive"
+              value={formatDuration(
+                nonProductive
+              )}
+              type="danger"
+            />
+
+            <Breakdown
+              label="Idle"
+              value={formatDuration(
+                idle
+              )}
+              type="warning"
+            />
+
+          </div>
+
+        </section>
+
       </div>
+
+    </div>
+  );
+}
+
+function MetricCard({
+  label,
+  value,
+  variant = "",
+  icon,
+}) {
+  return (
+    <div className="metric-card animate-card">
+
+      <div className="metric-top">
+
+        <span className="metric-label">
+          {label}
+        </span>
+
+        <span className="metric-icon">
+          {icon}
+        </span>
+
+      </div>
+
+      <strong
+        className={`metric-value ${variant}`}
+      >
+        {value}
+      </strong>
+
+    </div>
+  );
+}
+
+function Breakdown({
+  label,
+  value,
+  type,
+}) {
+  return (
+    <div className="breakdown-row">
+
+      <span className="breakdown-label">
+
+        <span
+          className={`breakdown-dot ${type}`}
+        ></span>
+
+        {label}
+
+      </span>
+
+      <strong>
+        {value}
+      </strong>
+
     </div>
   );
 }
