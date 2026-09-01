@@ -7,7 +7,7 @@ import toast from "react-hot-toast";
 import { useAuth } from "../contexts/AuthContext";
 
 const COMPANY_TENANT_ID =
-  "c49269dc-402d-4fe8-9be9-480025fc2047";
+  "cad37dcd-302b-493f-b4f2-986fc3bf3619";
 
 const Register = () => {
   const [formData, setFormData] = useState({

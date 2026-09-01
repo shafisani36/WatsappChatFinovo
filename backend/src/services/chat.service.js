@@ -4,7 +4,6 @@ const { Conversation, ConversationParticipant, Message, User } = require("../mod
 const isAdmin = (role) => role === "COMPANY_ADMIN";
 
 class ChatService {
-  // List everyone in the tenant a user could start a chat with.
   async getChattableUsers(tenantId, excludeUserId) {
     return User.findAll({
       where: { tenantId, id: { [Op.ne]: excludeUserId } },
@@ -13,8 +12,6 @@ class ChatService {
     });
   }
 
-  // Conversations the requester is actually a participant of, newest first,
-  // with a small preview + unread count for the sidebar list.
   async getMyConversations(tenantId, userId) {
     const memberships = await ConversationParticipant.findAll({
       where: { userId },
@@ -82,7 +79,6 @@ class ChatService {
       throw new Error("USER_NOT_FOUND");
     }
 
-    // Look for an existing DIRECT conversation shared by exactly these two.
     const myMemberships = await ConversationParticipant.findAll({
       where: { userId },
       include: [{ model: Conversation, where: { tenantId, type: "DIRECT" } }],
@@ -172,8 +168,6 @@ class ChatService {
       throw new Error("EMPTY_MESSAGE");
     }
 
-    // Sending requires actual membership — admin oversight is read-only,
-    // an admin shouldn't be able to post into a chat they're not part of.
     const membership = await ConversationParticipant.findOne({
       where: { conversationId, userId: senderId },
     });
@@ -201,8 +195,6 @@ class ChatService {
       { where: { conversationId, userId } }
     );
   }
-
-  // Admin-only: every conversation in the tenant, regardless of membership.
   async getAllConversationsForAdmin(tenantId, adminId) {
     const conversations = await Conversation.findAll({
       where: { tenantId },

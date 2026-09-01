@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>TrackPulse Recorder</title>
+</head>
+<body>
+<script>
+const { ipcRenderer } = require("electron");
+
+let mediaRecorder = null;
+let stream = null;
+let sessionId = null;
+let recordingStart = null;
+let segmentTimer = null;
+
+async function startRecording(data) {
+  try {
+    stopCurrentRecording();
+
+    sessionId = data.sessionId;
+
+    const mediaConstraints = {
+      audio: false,
+      video: {
+        mandatory: {
+          chromeMediaSource: "desktop",
+          chromeMediaSourceId: data.sourceId,
+          minWidth: 1280,
+          maxWidth: 1920,
+          minHeight: 720,
+          maxHeight: 1080,
+          minFrameRate: 15,
+          maxFrameRate: 30
+        }
+      }
+    };
+
+    stream =
+      await navigator.mediaDevices.getUserMedia(
+        mediaConstraints
+      );
+
+    const mimeTypes = [
+      "video/webm;codecs=vp9",
+      "video/webm;codecs=vp8",
+      "video/webm"
+    ];
+
+    const supportedType =
+      mimeTypes.find(
+        type =>
+          MediaRecorder.isTypeSupported(type)
+      );
+
+    mediaRecorder =
+      supportedType
+        ? new MediaRecorder(
+            stream,
+            {
+              mimeType: supportedType
+            }
+          )
+        : new MediaRecorder(
+            stream
+          );
+
+    const chunks = [];
+
+    recordingStart = Date.now();
+
+    mediaRecorder.ondataavailable =
+      event => {
+        if (
+          event.data &&
+          event.data.size > 0
+        ) {
+          chunks.push(event.data);
+        }
+      };
+
+    mediaRecorder.onstop =
+      async () => {
+        const duration =
+          Math.floor(
+            (
+              Date.now() -
+              recordingStart
+            ) / 1000
+          );
+
+        const blob =
+          new Blob(
+            chunks,
+            {
+              type:
+                mediaRecorder.mimeType ||
+                "video/webm"
+            }
+          );
+
+        const buffer =
+          await blob.arrayBuffer();
+
+        ipcRenderer.send(
+          "recording-ready",
+          {
+            buffer:
+              new Uint8Array(buffer),
+            sessionId,
+            duration
+          }
+        );
+
+        if (stream) {
+          stream
+            .getTracks()
+            .forEach(
+              track =>
+                track.stop()
+            );
+        }
+
+        stream = null;
+        mediaRecorder = null;
+
+        ipcRenderer.send(
+          "recording-segment-finished"
+        );
+      };
+
+    const videoTrack =
+      stream.getVideoTracks()[0];
+
+    if (videoTrack) {
+      videoTrack.onended =
+        () => {
+          stopCurrentRecording();
+        };
+    }
+
+    mediaRecorder.start(1000);
+
+    segmentTimer =
+      setTimeout(
+        () => {
+          stopCurrentRecording();
+        },
+        data.segmentDuration
+      );
+  } catch (error) {
+    console.error(
+      "Recorder error:",
+      error.message
+    );
+
+    ipcRenderer.send(
+      "recording-segment-finished"
+    );
+  }
+}
+
+function stopCurrentRecording() {
+  if (segmentTimer) {
+    clearTimeout(
+      segmentTimer
+    );
+
+    segmentTimer = null;
+  }
+
+  if (
+    mediaRecorder &&
+    mediaRecorder.state ===
+      "recording"
+  ) {
+    mediaRecorder.stop();
+    return;
+  }
+
+  if (stream) {
+    stream
+      .getTracks()
+      .forEach(
+        track =>
+          track.stop()
+      );
+
+    stream = null;
+  }
+}
+
+ipcRenderer.on(
+  "start-recording",
+  (_, data) => {
+    startRecording(data);
+  }
+);
+
+ipcRenderer.on(
+  "continue-recording",
+  (_, data) => {
+    startRecording(data);
+  }
+);
+
+ipcRenderer.on(
+  "stop-recording",
+  () => {
+    if (segmentTimer) {
+      clearTimeout(
+        segmentTimer
+      );
+
+      segmentTimer = null;
+    }
+
+    if (
+      mediaRecorder &&
+      mediaRecorder.state ===
+        "recording"
+    ) {
+      mediaRecorder.stop();
+    } else {
+      if (stream) {
+        stream
+          .getTracks()
+          .forEach(
+            track =>
+              track.stop()
+          );
+
+        stream = null;
+      }
+    }
+  }
+);
+</script>
+</body>
+</html>

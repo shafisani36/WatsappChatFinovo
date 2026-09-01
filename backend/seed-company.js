@@ -6,7 +6,7 @@ const { sequelize, Company } = require("./src/models/index.model");
     await sequelize.authenticate();
 
     const [company, created] = await Company.findOrCreate({
-      where: { id: "c49269dc-402d-4fe8-9be9-480025fc2047" },
+      where: { id: "cad37dcd-302b-493f-b4f2-986fc3bf3619" },
       defaults: {
         name: "Finovo Global",
         status: "ACTIVE",

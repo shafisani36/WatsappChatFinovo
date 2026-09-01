@@ -42,9 +42,6 @@ const register = async (req, res) => {
 
     let resolvedManagerId = managerId || null;
 
-    // Auto-assign a manager for regular employees so every new signup
-    // shows up under "Employees" / team reports without any manual step.
-    // Admins/managers themselves are left unassigned.
     if (!resolvedManagerId && (!role || role === "EMPLOYEE")) {
       const defaultManager = await user.findOne({
         where: { tenantId, role: "COMPANY_ADMIN" },

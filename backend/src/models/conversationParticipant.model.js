@@ -28,8 +28,6 @@ const ConversationParticipant = sequelize.define(
       },
     },
 
-    // Used to compute the unread-message badge: any message newer than
-    // this timestamp, in this conversation, is unread for this user.
     lastReadAt: {
       type: DataTypes.DATE,
       allowNull: true,

@@ -1,7 +1,5 @@
 const { User, Task, sequelize } = require("../models/index.model");
 
-// Admins don't get assigned tasks in this system, so they don't appear
-// on the leaderboard — only Manager and Employee compete.
 const LEADERBOARD_ROLES = ["MANAGER", "EMPLOYEE"];
 
 class LeaderboardService {

@@ -3,6 +3,9 @@ import {
   useState,
 } from "react";
 
+import toast from "react-hot-toast";
+import * as XLSX from "xlsx";
+import "../assets/styles/report.css"
 import api from "../api/axios";
 
 const formatDuration = (seconds) => {
@@ -58,6 +61,11 @@ export default function Reports() {
     setLoading,
   ] = useState(false);
 
+  const [
+    downloading,
+    setDownloading,
+  ] = useState(false);
+
   useEffect(() => {
     const fetchReport = async () => {
       setLoading(true);
@@ -96,6 +104,130 @@ export default function Reports() {
       0
   );
 
+
+  const downloadExcel = () => {
+    if (!reportData) {
+      toast.error("No report data available");
+      return;
+    }
+
+    setDownloading(true);
+
+    try {
+      const reportRows = [
+        {
+          "Report Type":
+            reportType.charAt(0).toUpperCase() +
+            reportType.slice(1),
+
+          "Report Date":
+            reportData.date ||
+            selectedDate,
+
+          "Total Tracked":
+            reportData.totalTrackedTimeFormatted ||
+            formatDuration(
+              reportData.totalTrackedTime
+            ),
+
+          "Productive Time":
+            reportData.workingTimeFormatted ||
+            formatDuration(
+              reportData.workingTime
+            ),
+
+          "Non-Productive Time":
+            reportData.nonProductiveTimeFormatted ||
+            formatDuration(
+              reportData.nonProductiveTime
+            ),
+
+          "Idle Time":
+            reportData.idleTimeFormatted ||
+            formatDuration(
+              reportData.idleTime
+            ),
+
+          "Productivity":
+            `${productivity}%`,
+
+          "Expected Working Hours":
+            `${reportData.expectedHours || 0} hrs`,
+
+          "Sessions Recorded":
+            reportData.sessionsCount || 0,
+
+          "Progress Toward Expected":
+            `${Math.round(
+              reportData.progressPercentage || 0
+            )}%`,
+
+          "Week Start":
+            reportData.weekStart || "",
+
+          "Week End":
+            reportData.weekEnd || "",
+
+          "Month":
+            reportData.month || "",
+        },
+      ];
+
+      const worksheet =
+        XLSX.utils.json_to_sheet(
+          reportRows
+        );
+
+      worksheet["!cols"] = [
+        { wch: 25 },
+        { wch: 25 },
+        { wch: 22 },
+        { wch: 22 },
+        { wch: 25 },
+        { wch: 18 },
+        { wch: 15 },
+        { wch: 25 },
+        { wch: 20 },
+        { wch: 25 },
+        { wch: 15 },
+        { wch: 15 },
+        { wch: 15 },
+      ];
+
+      const workbook =
+        XLSX.utils.book_new();
+
+      XLSX.utils.book_append_sheet(
+        workbook,
+        worksheet,
+        "Report"
+      );
+
+      const fileName =
+        `Time-Tracking-${reportType}-${selectedDate}.xlsx`;
+
+      XLSX.writeFile(
+        workbook,
+        fileName
+      );
+
+      toast.success(
+        "Report downloaded successfully"
+      );
+    } catch (error) {
+      console.error(
+        "Excel download error:",
+        error
+      );
+
+      toast.error(
+        "Could not download report"
+      );
+    } finally {
+      setDownloading(false);
+    }
+  };
+
   return (
     <div className="reports-page">
 
@@ -118,7 +250,31 @@ export default function Reports() {
 
         </div>
 
+        {reportData && (
+          <button
+            className="report-download-button"
+            onClick={downloadExcel}
+            disabled={downloading}
+          >
+            {downloading ? (
+              <>
+                <span className="button-spinner"></span>
+                Preparing...
+              </>
+            ) : (
+              <>
+                <span className="download-icon">
+                  ↓
+                </span>
+                Download Excel
+              </>
+            )}
+          </button>
+        )}
+
       </div>
+
+
 
       <div className="report-controls animate-card">
 
@@ -184,6 +340,7 @@ export default function Reports() {
       ) : reportData ? (
 
         <>
+
 
           <div className="metrics-grid">
 

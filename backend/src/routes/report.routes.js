@@ -2,7 +2,9 @@ const express = require("express");
 
 const router = express.Router();
 
-const reportController = require("../controllers/report.controller");
+const reportController =
+  require("../controllers/report.controller");
+
 const {
   authenticate,
 } = require("../middlewares/auth.middleware");
@@ -37,6 +39,11 @@ router.get(
 router.get(
   "/team",
   reportController.getTeamReport
+);
+
+router.get(
+  "/employee-progress",
+  reportController.getEmployeeProgress
 );
 
 module.exports = router;

@@ -9,13 +9,15 @@ const verifyConnection = async () => {
 
     await sequelize.sync({ alter: true });
     console.log("All database tables synced successfully!");
+     
+    await seedSettings();
   } catch (error) {
     console.error("Database connection failed:", error.message);
   }
 };
 
 verifyConnection();
-seedSettings();
+
 app.listen(3000, () => {
   console.log("Server is running on port 3000");
 });

@@ -16,27 +16,22 @@ export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
-
-
   const fetchUser = async () => {
     try {
       const response = await api.get("/auth/dashboard");
 
-      setUser(response.data.user);
+      setUser(response.data?.user || null);
     } catch (error) {
+      console.error("FETCH USER ERROR:", error);
       setUser(null);
     } finally {
       setLoading(false);
     }
   };
 
-
-
   useEffect(() => {
     fetchUser();
   }, []);
-
-
 
   useEffect(() => {
     if (user) {
@@ -50,70 +45,67 @@ export const AuthProvider = ({ children }) => {
     };
   }, [user]);
 
-
   const login = async (email, passwordHash) => {
     const response = await api.post("/auth/login", {
       email,
       passwordHash,
     });
 
-    setUser(response.data.user);
+    const loggedInUser = response.data?.user || null;
+
+    setUser(loggedInUser);
 
     startTokenRefresh();
 
     return response.data;
   };
 
+  const register = async (userData) => {
+    const response = await api.post(
+      "/auth/register",
+      userData
+    );
 
-
-const register = async (userData) => {
-  const response = await api.post(
-    "/auth/register",
-    userData
-  );
-
-  return response.data;
-};
-
+    return response.data;
+  };
 
   const logout = async () => {
     try {
       await api.post("/auth/logout");
     } catch (error) {
-      console.error(
-        "Logout request failed:",
-        error
-      );
+      console.error("Logout request failed:", error);
     } finally {
       stopTokenRefresh();
       setUser(null);
     }
   };
 
-
-  const isManager =
-    user?.role === "MANAGER" ||
-    user?.role === "COMPANY_ADMIN" ||
-    user?.role === "ADMIN";
+  const role = user?.role || null;
 
   const isAdmin =
-    user?.role === "COMPANY_ADMIN" ||
-    user?.role === "ADMIN";
+    role === "COMPANY_ADMIN" ||
+    role === "ADMIN";
+
+  const isManager =
+    role === "MANAGER" ||
+    role === "COMPANY_ADMIN" ||
+    role === "ADMIN";
 
   const isEmployee =
-    user?.role === "EMPLOYEE";
+    role === "EMPLOYEE";
 
   return (
     <AuthContext.Provider
       value={{
         user,
         loading,
+        role,
         login,
         register,
         logout,
         fetchUser,
-        isManager,
         isAdmin,
+        isManager,
         isEmployee,
       }}
     >
@@ -122,5 +114,14 @@ const register = async (userData) => {
   );
 };
 
-export const useAuth = () =>
-  useContext(AuthContext);
+export const useAuth = () => {
+  const context = useContext(AuthContext);
+
+  if (!context) {
+    throw new Error(
+      "useAuth must be used inside AuthProvider"
+    );
+  }
+
+  return context;
+};

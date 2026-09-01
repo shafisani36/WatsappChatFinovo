@@ -4,13 +4,14 @@ const {
   User,
 } = require("../models/index.model");
 
-const { Op } = require("sequelize");
+const {
+  Op,
+} = require("sequelize");
 
-const timeCalc = require("./timeCalculation.service");
+const timeCalc =
+  require("./timeCalculation.service");
 
 class ReportService {
-
-
   async getDailyReport(
     userId,
     tenantId,
@@ -35,7 +36,11 @@ class ReportService {
     );
 
     const user =
-      await User.findByPk(userId, {
+      await User.findOne({
+        where: {
+          id: userId,
+          tenantId,
+        },
         attributes: [
           "id",
           "name",
@@ -65,20 +70,18 @@ class ReportService {
         },
       });
 
-    /*
-     * Also include current active session.
-     */
-
     const activeSession =
       await WorkSession.findOne({
         where: {
           userId,
           tenantId,
 
-          status: [
-            "ACTIVE",
-            "PAUSED",
-          ],
+          status: {
+            [Op.in]: [
+              "ACTIVE",
+              "PAUSED",
+            ],
+          },
         },
       });
 
@@ -93,10 +96,6 @@ class ReportService {
     let idleSeconds = 0;
     let nonProductiveSeconds = 0;
     let pausedSeconds = 0;
-
-    /*
-     * COMPLETED SESSIONS
-     */
 
     sessions.forEach(
       (session) => {
@@ -121,13 +120,6 @@ class ReportService {
           ) || 0;
       }
     );
-
-    /*
-     * ACTIVE SESSION
-     *
-     * Its activity values are already
-     * stored by activity.service.
-     */
 
     if (activeSession) {
       workingSeconds +=
@@ -255,7 +247,6 @@ class ReportService {
     };
   }
 
-
   async getWeeklyReport(
     userId,
     tenantId,
@@ -265,14 +256,21 @@ class ReportService {
       ? new Date(date)
       : new Date();
 
-    const { start, end } =
+    const {
+      start,
+      end,
+    } =
       timeCalc.getDateRange(
         "weekly",
         targetDate
       );
 
     const user =
-      await User.findByPk(userId, {
+      await User.findOne({
+        where: {
+          id: userId,
+          tenantId,
+        },
         attributes: [
           "id",
           "name",
@@ -462,7 +460,6 @@ class ReportService {
     };
   }
 
-
   async getMonthlyReport(
     userId,
     tenantId,
@@ -472,14 +469,21 @@ class ReportService {
       ? new Date(date)
       : new Date();
 
-    const { start, end } =
+    const {
+      start,
+      end,
+    } =
       timeCalc.getDateRange(
         "monthly",
         targetDate
       );
 
     const user =
-      await User.findByPk(userId, {
+      await User.findOne({
+        where: {
+          id: userId,
+          tenantId,
+        },
         attributes: [
           "id",
           "name",
@@ -668,35 +672,37 @@ class ReportService {
     };
   }
 
-
-
   async getTeamReport(
-    managerId,
+    viewerId,
     tenantId,
-    date = null
+    role,
+    date = null,
+    period = "daily"
   ) {
-    const targetDate = date
-      ? new Date(date)
-      : new Date();
+    let where = {
+      tenantId,
+      role: "EMPLOYEE",
+    };
 
-    const { start, end } =
-      timeCalc.getDateRange(
-        "weekly",
-        targetDate
-      );
+    if (role === "MANAGER") {
+      where.managerId = viewerId;
+    }
 
     const teamMembers =
       await User.findAll({
-        where: {
-          tenantId,
-          managerId,
-        },
+        where,
 
         attributes: [
           "id",
           "name",
           "email",
           "role",
+          "managerId",
+          "teamId",
+        ],
+
+        order: [
+          ["name", "ASC"],
         ],
       });
 
@@ -705,12 +711,32 @@ class ReportService {
     for (
       const member of teamMembers
     ) {
-      const report =
-        await this.getWeeklyReport(
-          member.id,
-          tenantId,
-          date
-        );
+      let report;
+
+      if (period === "weekly") {
+        report =
+          await this.getWeeklyReport(
+            member.id,
+            tenantId,
+            date
+          );
+      } else if (
+        period === "monthly"
+      ) {
+        report =
+          await this.getMonthlyReport(
+            member.id,
+            tenantId,
+            date
+          );
+      } else {
+        report =
+          await this.getDailyReport(
+            member.id,
+            tenantId,
+            date
+          );
+      }
 
       reports.push(report);
     }
@@ -720,7 +746,9 @@ class ReportService {
         ? reports.reduce(
             (sum, report) =>
               sum +
-              report.productivityPercentage,
+              Number(
+                report.productivityPercentage
+              ),
             0
           ) / reports.length
         : 0;
@@ -730,7 +758,9 @@ class ReportService {
         ? reports.reduce(
             (sum, report) =>
               sum +
-              report.progressPercentage,
+              Number(
+                report.progressPercentage
+              ),
             0
           ) / reports.length
         : 0;
@@ -739,27 +769,84 @@ class ReportService {
       reports.reduce(
         (sum, report) =>
           sum +
-          report.totalTrackedTime,
+          Number(
+            report.totalTrackedTime
+          ),
+        0
+      );
+
+    const totalWorking =
+      reports.reduce(
+        (sum, report) =>
+          sum +
+          Number(
+            report.workingTime
+          ),
+        0
+      );
+
+    const totalIdle =
+      reports.reduce(
+        (sum, report) =>
+          sum +
+          Number(
+            report.idleTime
+          ),
+        0
+      );
+
+    const totalNonProductive =
+      reports.reduce(
+        (sum, report) =>
+          sum +
+          Number(
+            report.nonProductiveTime
+          ),
         0
       );
 
     return {
-      period: {
-        start:
-          start
-            .toISOString()
-            .split("T")[0],
-
-        end:
-          end
-            .toISOString()
-            .split("T")[0],
-      },
+      period,
 
       teamSize:
         teamMembers.length,
 
-      teamMembers: reports,
+      teamMembers:
+        reports,
+
+      totals: {
+        totalTrackedTime:
+          totalTracked,
+
+        totalWorkingTime:
+          totalWorking,
+
+        totalIdleTime:
+          totalIdle,
+
+        totalNonProductiveTime:
+          totalNonProductive,
+
+        totalTrackedTimeFormatted:
+          timeCalc.formatDuration(
+            totalTracked
+          ),
+
+        totalWorkingTimeFormatted:
+          timeCalc.formatDuration(
+            totalWorking
+          ),
+
+        totalIdleTimeFormatted:
+          timeCalc.formatDuration(
+            totalIdle
+          ),
+
+        totalNonProductiveTimeFormatted:
+          timeCalc.formatDuration(
+            totalNonProductive
+          ),
+      },
 
       averages: {
         productivityPercentage:
@@ -769,11 +856,284 @@ class ReportService {
           avgProgress,
 
         totalTrackedTime:
-          totalTracked,
+          reports.length
+            ? totalTracked /
+              reports.length
+            : 0,
 
         totalTrackedTimeFormatted:
           timeCalc.formatDuration(
-            totalTracked
+            reports.length
+              ? totalTracked /
+                  reports.length
+              : 0
+          ),
+      },
+    };
+  }
+
+  async getEmployeeProgress(
+    viewerId,
+    tenantId,
+    role,
+    type = "daily",
+    date = null
+  ) {
+    if (
+      ![
+        "MANAGER",
+        "COMPANY_ADMIN",
+        "ADMIN",
+      ].includes(role)
+    ) {
+      throw new Error("FORBIDDEN");
+    }
+
+    let where = {
+      tenantId,
+      role: "EMPLOYEE",
+    };
+
+    if (role === "MANAGER") {
+      where.managerId = viewerId;
+    }
+
+    const employees =
+      await User.findAll({
+        where,
+
+        attributes: [
+          "id",
+          "name",
+          "email",
+          "role",
+          "managerId",
+          "teamId",
+        ],
+
+        order: [
+          ["name", "ASC"],
+        ],
+      });
+
+    const employeesProgress = [];
+
+    for (
+      const employee of employees
+    ) {
+      let report;
+
+      if (type === "weekly") {
+        report =
+          await this.getWeeklyReport(
+            employee.id,
+            tenantId,
+            date
+          );
+      } else if (
+        type === "monthly"
+      ) {
+        report =
+          await this.getMonthlyReport(
+            employee.id,
+            tenantId,
+            date
+          );
+      } else {
+        report =
+          await this.getDailyReport(
+            employee.id,
+            tenantId,
+            date
+          );
+      }
+
+      employeesProgress.push({
+        employee:
+          report.employee,
+
+        progressPercentage:
+          Number(
+            report.progressPercentage
+          ) || 0,
+
+        productivityPercentage:
+          Number(
+            report.productivityPercentage
+          ) || 0,
+
+        totalTrackedTime:
+          Number(
+            report.totalTrackedTime
+          ) || 0,
+
+        totalTrackedTimeFormatted:
+          report.totalTrackedTimeFormatted,
+
+        workingTime:
+          Number(
+            report.workingTime
+          ) || 0,
+
+        workingTimeFormatted:
+          report.workingTimeFormatted,
+
+        idleTime:
+          Number(
+            report.idleTime
+          ) || 0,
+
+        idleTimeFormatted:
+          report.idleTimeFormatted,
+
+        nonProductiveTime:
+          Number(
+            report.nonProductiveTime
+          ) || 0,
+
+        nonProductiveTimeFormatted:
+          report.nonProductiveTimeFormatted,
+
+        pausedTime:
+          Number(
+            report.pausedTime
+          ) || 0,
+
+        pausedTimeFormatted:
+          report.pausedTimeFormatted,
+
+        expectedHours:
+          Number(
+            report.expectedHours
+          ) || 0,
+
+        remainingSeconds:
+          Number(
+            report.remainingSeconds
+          ) || 0,
+
+        remainingHours:
+          Number(
+            report.remainingHours
+          ) || 0,
+
+        sessionsCount:
+          Number(
+            report.sessionsCount
+          ) || 0,
+
+        hasActiveSession:
+          !!report.hasActiveSession,
+      });
+    }
+
+    const totalEmployees =
+      employeesProgress.length;
+
+    const totalTrackedTime =
+      employeesProgress.reduce(
+        (sum, employee) =>
+          sum +
+          employee.totalTrackedTime,
+        0
+      );
+
+    const totalWorkingTime =
+      employeesProgress.reduce(
+        (sum, employee) =>
+          sum +
+          employee.workingTime,
+        0
+      );
+
+    const totalIdleTime =
+      employeesProgress.reduce(
+        (sum, employee) =>
+          sum +
+          employee.idleTime,
+        0
+      );
+
+    const totalNonProductiveTime =
+      employeesProgress.reduce(
+        (sum, employee) =>
+          sum +
+          employee.nonProductiveTime,
+        0
+      );
+
+    const averageProgress =
+      totalEmployees
+        ? employeesProgress.reduce(
+            (sum, employee) =>
+              sum +
+              employee.progressPercentage,
+            0
+          ) / totalEmployees
+        : 0;
+
+    const averageProductivity =
+      totalEmployees
+        ? employeesProgress.reduce(
+            (sum, employee) =>
+              sum +
+              employee.productivityPercentage,
+            0
+          ) / totalEmployees
+        : 0;
+
+    return {
+      type,
+
+      date: date
+        ? new Date(date)
+            .toISOString()
+            .split("T")[0]
+        : new Date()
+            .toISOString()
+            .split("T")[0],
+
+      teamSize:
+        totalEmployees,
+
+      employees:
+        employeesProgress,
+
+      averages: {
+        progressPercentage:
+          averageProgress,
+
+        productivityPercentage:
+          averageProductivity,
+      },
+
+      totals: {
+        totalTrackedTime,
+
+        totalWorkingTime,
+
+        totalIdleTime,
+
+        totalNonProductiveTime,
+
+        totalTrackedTimeFormatted:
+          timeCalc.formatDuration(
+            totalTrackedTime
+          ),
+
+        totalWorkingTimeFormatted:
+          timeCalc.formatDuration(
+            totalWorkingTime
+          ),
+
+        totalIdleTimeFormatted:
+          timeCalc.formatDuration(
+            totalIdleTime
+          ),
+
+        totalNonProductiveTimeFormatted:
+          timeCalc.formatDuration(
+            totalNonProductiveTime
           ),
       },
     };

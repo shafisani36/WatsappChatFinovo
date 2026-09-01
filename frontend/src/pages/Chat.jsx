@@ -3,7 +3,7 @@ import toast from "react-hot-toast";
 
 import api from "../api/axios";
 import { useAuth } from "../contexts/AuthContext";
-
+import "../assets/styles/chat.css";
 const initials = (name = "") =>
   name
     .split(" ")
@@ -14,13 +14,17 @@ const initials = (name = "") =>
 
 const formatTime = (dateStr) => {
   if (!dateStr) return "";
-  return new Date(dateStr).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+
+  return new Date(dateStr).toLocaleTimeString([], {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 };
 
 const Chat = () => {
   const { user, isAdmin } = useAuth();
 
-  const [view, setView] = useState("mine"); // "mine" | "admin"
+  const [view, setView] = useState("mine");
   const [conversations, setConversations] = useState([]);
   const [selectedId, setSelectedId] = useState(null);
   const [messages, setMessages] = useState([]);
@@ -28,19 +32,31 @@ const Chat = () => {
   const [sending, setSending] = useState(false);
 
   const [showNewChat, setShowNewChat] = useState(false);
-  const [newChatMode, setNewChatMode] = useState("direct"); // "direct" | "group"
+  const [newChatMode, setNewChatMode] = useState("direct");
   const [chattableUsers, setChattableUsers] = useState([]);
   const [groupName, setGroupName] = useState("");
   const [selectedUserIds, setSelectedUserIds] = useState([]);
 
   const messagesEndRef = useRef(null);
-  const selectedConversation = conversations.find((c) => c.id === selectedId);
-  const isReadOnly = view === "admin" && isAdmin && !selectedConversation?.iAmParticipant;
+
+  const selectedConversation = conversations.find(
+    (conversation) => conversation.id === selectedId
+  );
+
+  const isReadOnly =
+    view === "admin" &&
+    isAdmin &&
+    !selectedConversation?.iAmParticipant;
 
   const loadConversations = async () => {
     try {
-      const endpoint = view === "admin" ? "/chat/admin/conversations" : "/chat/conversations";
+      const endpoint =
+        view === "admin"
+          ? "/chat/admin/conversations"
+          : "/chat/conversations";
+
       const response = await api.get(endpoint);
+
       setConversations(response.data.data);
     } catch (error) {
       toast.error("Could not load conversations");
@@ -49,10 +65,16 @@ const Chat = () => {
 
   const loadMessages = async (conversationId) => {
     try {
-      const response = await api.get(`/chat/conversations/${conversationId}/messages`);
+      const response = await api.get(
+        `/chat/conversations/${conversationId}/messages`
+      );
+
       setMessages(response.data.data);
+
       if (view === "mine") {
-        api.patch(`/chat/conversations/${conversationId}/read`).catch(() => {});
+        api
+          .patch(`/chat/conversations/${conversationId}/read`)
+          .catch(() => {});
       }
     } catch (error) {
       toast.error("Could not load messages");
@@ -62,45 +84,67 @@ const Chat = () => {
   const loadChattableUsers = async () => {
     try {
       const response = await api.get("/chat/users");
+
       setChattableUsers(response.data.data);
     } catch (error) {
-      // silent — dropdown just stays empty
     }
   };
 
   useEffect(() => {
     loadConversations();
+
     setSelectedId(null);
     setMessages([]);
+
     const poll = setInterval(loadConversations, 8000);
+
     return () => clearInterval(poll);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+
   }, [view]);
 
   useEffect(() => {
     if (!selectedId) return;
+
     loadMessages(selectedId);
-    const poll = setInterval(() => loadMessages(selectedId), 3000);
+
+    const poll = setInterval(() => {
+      loadMessages(selectedId);
+    }, 3000);
+
     return () => clearInterval(poll);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+
   }, [selectedId]);
 
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    messagesEndRef.current?.scrollIntoView({
+      behavior: "smooth",
+    });
   }, [messages]);
 
   const sendMessage = async (event) => {
     event.preventDefault();
+
     if (!messageText.trim() || !selectedId) return;
 
     setSending(true);
+
     try {
-      await api.post(`/chat/conversations/${selectedId}/messages`, { content: messageText });
+      await api.post(
+        `/chat/conversations/${selectedId}/messages`,
+        {
+          content: messageText.trim(),
+        }
+      );
+
       setMessageText("");
-      loadMessages(selectedId);
-      loadConversations();
+
+      await loadMessages(selectedId);
+      await loadConversations();
     } catch (error) {
-      toast.error(error.response?.data?.message || "Could not send message");
+      toast.error(
+        error.response?.data?.message ||
+          "Could not send message"
+      );
     } finally {
       setSending(false);
     }
@@ -111,290 +155,758 @@ const Chat = () => {
     setNewChatMode("direct");
     setGroupName("");
     setSelectedUserIds([]);
+
     loadChattableUsers();
+  };
+
+  const closeNewChat = () => {
+    setShowNewChat(false);
+    setGroupName("");
+    setSelectedUserIds([]);
   };
 
   const startDirectChat = async (otherUserId) => {
     try {
-      const response = await api.post("/chat/conversations/direct", { userId: otherUserId });
-      setShowNewChat(false);
+      const response = await api.post(
+        "/chat/conversations/direct",
+        {
+          userId: otherUserId,
+        }
+      );
+
+      closeNewChat();
+
       setView("mine");
+
       await loadConversations();
+
       setSelectedId(response.data.data.id);
     } catch (error) {
-      toast.error(error.response?.data?.message || "Could not start chat");
+      toast.error(
+        error.response?.data?.message ||
+          "Could not start chat"
+      );
     }
   };
 
   const createGroup = async (event) => {
     event.preventDefault();
-    if (!groupName.trim() || selectedUserIds.length === 0) {
-      toast.error("Group name and at least one member are required");
+
+    if (
+      !groupName.trim() ||
+      selectedUserIds.length === 0
+    ) {
+      toast.error(
+        "Group name and at least one member are required"
+      );
+
       return;
     }
+
     try {
-      const response = await api.post("/chat/conversations/group", {
-        name: groupName,
-        participantIds: selectedUserIds,
-      });
-      setShowNewChat(false);
+      const response = await api.post(
+        "/chat/conversations/group",
+        {
+          name: groupName.trim(),
+          participantIds: selectedUserIds,
+        }
+      );
+
+      closeNewChat();
+
       setView("mine");
+
       await loadConversations();
+
       setSelectedId(response.data.data.id);
     } catch (error) {
-      toast.error(error.response?.data?.message || "Could not create group");
+      toast.error(
+        error.response?.data?.message ||
+          "Could not create group"
+      );
     }
   };
 
   const toggleUserSelection = (userId) => {
-    setSelectedUserIds((prev) => (prev.includes(userId) ? prev.filter((id) => id !== userId) : [...prev, userId]));
+    setSelectedUserIds((previous) =>
+      previous.includes(userId)
+        ? previous.filter((id) => id !== userId)
+        : [...previous, userId]
+    );
+  };
+
+  const selectConversation = (conversationId) => {
+    setSelectedId(conversationId);
   };
 
   return (
-    <div className="team-page">
-      <div className="page-header animate-in">
-        <div>
-          <h1>Chat</h1>
-          <p>{view === "admin" ? "Every conversation in the company" : "Talk with your teammates"}</p>
+    <div className="chat-page">
+
+      <div className="chat-header animate-in">
+
+        <div className="chat-heading">
+
+          <div className="chat-title-line">
+
+  
+            <div>
+              <div className="chat-title-row">
+
+                <h1>Chat</h1>
+
+              </div>
+
+              <p>
+                {view === "admin"
+                  ? "Every conversation in the company"
+                  : "Talk with your teammates"}
+              </p>
+            </div>
+
+          </div>
+
         </div>
 
-        <div style={{ display: "flex", gap: 10 }}>
+        <div className="chat-header-actions">
+
           {isAdmin && (
             <button
-              className="refresh-button"
-              onClick={() => setView(view === "mine" ? "admin" : "mine")}
+              className="chat-secondary-button"
+              onClick={() =>
+                setView(
+                  view === "mine"
+                    ? "admin"
+                    : "mine"
+                )
+              }
             >
-              {view === "mine" ? "View All (Admin)" : "Back to My Chats"}
+              <span>
+                {view === "mine"
+                  ? "◉"
+                  : "←"}
+              </span>
+
+              {view === "mine"
+                ? "View All"
+                : "My Chats"}
             </button>
           )}
+
           {view === "mine" && (
-            <button className="auth-button" style={{ width: "auto", padding: "10px 18px" }} onClick={openNewChat}>
-              + New Chat
+            <button
+              className="chat-new-button"
+              onClick={openNewChat}
+            >
+              <span>+</span>
+              New Chat
             </button>
           )}
+
         </div>
+
       </div>
 
-      <div className="dashboard-card animate-card" style={{ padding: 0, display: "grid", gridTemplateColumns: "300px 1fr", minHeight: 520, overflow: "hidden" }}>
-        {/* Conversation list */}
-        <div style={{ borderRight: "1px solid var(--border-light)", overflowY: "auto", maxHeight: 600 }}>
-          {conversations.length === 0 ? (
-            <div style={{ padding: 20, color: "var(--text-muted)", fontSize: 12 }}>
-              {view === "admin" ? "No conversations in the company yet." : "No chats yet — start one!"}
+
+
+      <div className="chat-workspace animate-card">
+
+  
+        <aside className="chat-conversations">
+
+          <div className="chat-sidebar-header">
+
+            <div>
+              <span className="section-kicker">
+                MESSAGES
+              </span>
+
+              <h2>
+                {view === "admin"
+                  ? "All conversations"
+                  : "Your conversations"}
+              </h2>
             </div>
-          ) : (
-            conversations.map((conv) => (
-              <div
-                key={conv.id}
-                onClick={() => setSelectedId(conv.id)}
-                style={{
-                  padding: "14px 16px",
-                  borderBottom: "1px solid var(--border-light)",
-                  cursor: "pointer",
-                  background: selectedId === conv.id ? "var(--primary-light)" : "transparent",
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 10,
-                }}
-              >
-                <div className="employee-avatar" style={{ flexShrink: 0 }}>
-                  {conv.type === "GROUP" ? "#" : initials(conv.name)}
+
+            <span className="chat-conversation-count">
+              {conversations.length}
+            </span>
+
+          </div>
+
+          <div className="chat-conversation-list">
+
+            {conversations.length === 0 ? (
+
+              <div className="chat-no-conversations">
+
+                <div className="chat-empty-icon">
+                  💬
                 </div>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                    <strong style={{ fontSize: 12, color: "var(--text)" }}>{conv.name}</strong>
-                    {conv.unreadCount > 0 && (
-                      <span
-                        style={{
-                          background: "var(--primary)",
-                          color: "white",
-                          borderRadius: 999,
-                          fontSize: 9,
-                          fontWeight: 700,
-                          padding: "2px 7px",
-                        }}
-                      >
-                        {conv.unreadCount}
-                      </span>
-                    )}
-                  </div>
-                  <p
-                    style={{
-                      fontSize: 11,
-                      color: "var(--text-muted)",
-                      margin: 0,
-                      whiteSpace: "nowrap",
-                      overflow: "hidden",
-                      textOverflow: "ellipsis",
-                    }}
+
+                <strong>
+                  No conversations
+                </strong>
+
+                <p>
+                  {view === "admin"
+                    ? "No conversations exist in the company yet."
+                    : "Start a conversation with a teammate."}
+                </p>
+
+                {view === "mine" && (
+                  <button
+                    onClick={openNewChat}
+                    className="chat-empty-action"
                   >
-                    {conv.lastMessage ? `${conv.lastMessage.senderName}: ${conv.lastMessage.content}` : "No messages yet"}
-                  </p>
-                </div>
-              </div>
-            ))
-          )}
-        </div>
-
-        {/* Message thread */}
-        <div style={{ display: "flex", flexDirection: "column" }}>
-          {!selectedId ? (
-            <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", color: "var(--text-muted)", fontSize: 13 }}>
-              Select a conversation to start chatting
-            </div>
-          ) : (
-            <>
-              <div style={{ padding: "14px 20px", borderBottom: "1px solid var(--border-light)" }}>
-                <strong style={{ fontSize: 13 }}>{selectedConversation?.name}</strong>
-                {selectedConversation?.type === "GROUP" && (
-                  <p style={{ fontSize: 11, color: "var(--text-muted)", margin: 0 }}>
-                    {selectedConversation.participants.map((p) => p.name).join(", ")}
-                  </p>
+                    + New Chat
+                  </button>
                 )}
+
               </div>
 
-              <div style={{ flex: 1, overflowY: "auto", padding: 20, display: "flex", flexDirection: "column", gap: 10, maxHeight: 440 }}>
-                {messages.map((msg) => {
-                  const mine = msg.senderId === user.id;
-                  return (
-                    <div key={msg.id} style={{ display: "flex", flexDirection: "column", alignItems: mine ? "flex-end" : "flex-start" }}>
-                      {!mine && selectedConversation?.type === "GROUP" && (
-                        <span style={{ fontSize: 10, color: "var(--text-muted)", marginBottom: 2 }}>{msg.sender?.name}</span>
+            ) : (
+
+              conversations.map((conversation) => (
+
+                <button
+                  key={conversation.id}
+                  type="button"
+                  className={`chat-conversation ${
+                    selectedId === conversation.id
+                      ? "selected"
+                      : ""
+                  }`}
+                  onClick={() =>
+                    selectConversation(
+                      conversation.id
+                    )
+                  }
+                >
+
+                  <div className="chat-conversation-avatar">
+
+                    {conversation.type === "GROUP"
+                      ? "#"
+                      : initials(conversation.name)}
+
+                  </div>
+
+                  <div className="chat-conversation-info">
+
+                    <div className="chat-conversation-top">
+
+                      <strong>
+                        {conversation.name}
+                      </strong>
+
+                      {conversation.unreadCount > 0 && (
+                        <span className="chat-unread">
+                          {conversation.unreadCount}
+                        </span>
                       )}
-                      <div
-                        style={{
-                          background: mine ? "var(--primary)" : "#f1f5f9",
-                          color: mine ? "white" : "var(--text)",
-                          padding: "9px 13px",
-                          borderRadius: 14,
-                          borderBottomRightRadius: mine ? 4 : 14,
-                          borderBottomLeftRadius: mine ? 14 : 4,
-                          maxWidth: 360,
-                          fontSize: 13,
-                          wordBreak: "break-word",
-                        }}
-                      >
-                        {msg.content}
-                      </div>
-                      <span style={{ fontSize: 9, color: "var(--text-muted)", marginTop: 2 }}>{formatTime(msg.createdAt)}</span>
+
                     </div>
-                  );
-                })}
-                <div ref={messagesEndRef} />
+
+                    <p>
+                      {conversation.lastMessage
+                        ? `${conversation.lastMessage.senderName}: ${conversation.lastMessage.content}`
+                        : "No messages yet"}
+                    </p>
+
+                  </div>
+
+                </button>
+
+              ))
+
+            )}
+
+          </div>
+
+        </aside>
+
+        <main className="chat-thread">
+
+          {!selectedId ? (
+
+            <div className="chat-welcome">
+
+              <div className="chat-welcome-icon">
+                💬
               </div>
+
+              <h2>
+                Start a conversation
+              </h2>
+
+              <p>
+                Select a conversation from the
+                sidebar to view your messages.
+              </p>
+
+              {view === "mine" && (
+                <button
+                  className="chat-welcome-button"
+                  onClick={openNewChat}
+                >
+                  + Start New Chat
+                </button>
+              )}
+
+            </div>
+
+          ) : (
+
+            <>
+
+
+              <div className="chat-thread-header">
+
+                <div className="chat-thread-user">
+
+                  <div className="chat-thread-avatar">
+                    {selectedConversation?.type ===
+                    "GROUP"
+                      ? "#"
+                      : initials(
+                          selectedConversation?.name
+                        )}
+                  </div>
+
+                  <div>
+
+                    <h2>
+                      {selectedConversation?.name}
+                    </h2>
+
+                    {selectedConversation?.type ===
+                    "GROUP" ? (
+                      <p>
+                        {selectedConversation.participants
+                          ?.map((participant) => participant.name)
+                          .join(", ")}
+                      </p>
+                    ) : (
+                      <p>
+                        Direct conversation
+                      </p>
+                    )}
+
+                  </div>
+
+                </div>
+
+                <div className="chat-thread-status">
+                  <span></span>
+                  Active
+                </div>
+
+              </div>
+
+
+              <div className="chat-messages">
+
+                {messages.length === 0 ? (
+
+                  <div className="chat-no-messages">
+
+                    <div>
+                      💬
+                    </div>
+
+                    <strong>
+                      No messages yet
+                    </strong>
+
+                    <p>
+                      Send the first message in
+                      this conversation.
+                    </p>
+
+                  </div>
+
+                ) : (
+
+                  messages.map((message) => {
+
+                    const mine =
+                      message.senderId === user.id;
+
+                    return (
+                      <div
+                        key={message.id}
+                        className={`chat-message-row ${
+                          mine ? "mine" : "other"
+                        }`}
+                      >
+
+                        {!mine &&
+                          selectedConversation?.type ===
+                            "GROUP" && (
+                            <span className="chat-message-sender">
+                              {message.sender?.name}
+                            </span>
+                          )}
+
+                        <div className="chat-message-line">
+
+                          {!mine && (
+                            <div className="chat-message-avatar">
+                              {initials(
+                                message.sender?.name
+                              )}
+                            </div>
+                          )}
+
+                          <div
+                            className={`chat-message ${
+                              mine
+                                ? "mine"
+                                : "other"
+                            }`}
+                          >
+                            {message.content}
+
+                            <span className="chat-message-time">
+                              {formatTime(
+                                message.createdAt
+                              )}
+                            </span>
+                          </div>
+
+                        </div>
+
+                      </div>
+                    );
+                  })
+
+                )}
+
+                <div ref={messagesEndRef} />
+
+              </div>
+
 
               {isReadOnly ? (
-                <div style={{ padding: "14px 20px", borderTop: "1px solid var(--border-light)", fontSize: 11, color: "var(--text-muted)" }}>
-                  Admin view — you can read this conversation but you're not a participant, so you can't send messages.
+
+                <div className="chat-readonly">
+
+                  <span>◉</span>
+
+                  <div>
+                    <strong>
+                      Admin read-only view
+                    </strong>
+
+                    <p>
+                      You can read this conversation,
+                      but you are not a participant.
+                    </p>
+                  </div>
+
                 </div>
+
               ) : (
-                <form onSubmit={sendMessage} style={{ padding: "14px 20px", borderTop: "1px solid var(--border-light)", display: "flex", gap: 10 }}>
+
+                <form
+                  className="chat-composer"
+                  onSubmit={sendMessage}
+                >
+
                   <input
-                    placeholder="Type a message..."
+                    placeholder="Write a message..."
                     value={messageText}
-                    onChange={(e) => setMessageText(e.target.value)}
-                    style={{ flex: 1, border: "1px solid #d9dee5", borderRadius: 8, padding: "10px 12px", fontSize: 12, outline: "none" }}
+                    onChange={(event) =>
+                      setMessageText(
+                        event.target.value
+                      )
+                    }
+                    disabled={sending}
                   />
-                  <button className="auth-button" style={{ width: "auto", padding: "10px 20px" }} type="submit" disabled={sending}>
-                    Send
+
+                  <button
+                    type="submit"
+                    disabled={
+                      sending ||
+                      !messageText.trim()
+                    }
+                  >
+                    {sending ? (
+                      <>
+                        <span className="button-spinner"></span>
+                        Sending
+                      </>
+                    ) : (
+                      <>
+                        Send
+                        <span>→</span>
+                      </>
+                    )}
                   </button>
+
                 </form>
+
               )}
+
             </>
+
           )}
-        </div>
+
+        </main>
+
       </div>
 
       {showNewChat && (
+
         <div
-          style={{
-            position: "fixed",
-            inset: 0,
-            background: "rgba(15, 23, 42, 0.4)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            zIndex: 50,
-          }}
-          onClick={() => setShowNewChat(false)}
+          className="chat-modal-overlay"
+          onClick={closeNewChat}
         >
-          <div className="dashboard-card animate-card" style={{ width: 420, maxHeight: "80vh", overflowY: "auto" }} onClick={(e) => e.stopPropagation()}>
-            <div className="card-header">
-              <h2>New Chat</h2>
+
+          <div
+            className="chat-modal animate-card"
+            onClick={(event) =>
+              event.stopPropagation()
+            }
+          >
+
+            <div className="chat-modal-header">
+
+              <div>
+
+                <span className="section-kicker">
+                  NEW CONVERSATION
+                </span>
+
+                <h2>
+                  Start a chat
+                </h2>
+
+                <p>
+                  Connect with one or more
+                  teammates.
+                </p>
+
+              </div>
+
+              <button
+                type="button"
+                className="chat-modal-close"
+                onClick={closeNewChat}
+              >
+                ×
+              </button>
+
             </div>
 
-            <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
+
+            <div className="chat-mode-switch">
+
               <button
-                className={newChatMode === "direct" ? "auth-button" : "refresh-button"}
-                style={{ flex: 1 }}
-                onClick={() => setNewChatMode("direct")}
                 type="button"
+                className={
+                  newChatMode === "direct"
+                    ? "active"
+                    : ""
+                }
+                onClick={() =>
+                  setNewChatMode("direct")
+                }
               >
+                <span>◉</span>
                 Direct Message
               </button>
+
               <button
-                className={newChatMode === "group" ? "auth-button" : "refresh-button"}
-                style={{ flex: 1 }}
-                onClick={() => setNewChatMode("group")}
                 type="button"
+                className={
+                  newChatMode === "group"
+                    ? "active"
+                    : ""
+                }
+                onClick={() =>
+                  setNewChatMode("group")
+                }
               >
+                <span>#</span>
                 Group Chat
               </button>
+
             </div>
 
+
             {newChatMode === "direct" ? (
-              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                {chattableUsers.map((u) => (
-                  <button
-                    key={u.id}
-                    onClick={() => startDirectChat(u.id)}
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 10,
-                      padding: "10px 12px",
-                      border: "1px solid var(--border-light)",
-                      borderRadius: 8,
-                      background: "white",
-                      cursor: "pointer",
-                      textAlign: "left",
-                    }}
-                  >
-                    <div className="employee-avatar">{initials(u.name)}</div>
-                    <div>
-                      <div style={{ fontSize: 12, fontWeight: 600 }}>{u.name}</div>
-                      <div style={{ fontSize: 10, color: "var(--text-muted)" }}>{u.role}</div>
-                    </div>
-                  </button>
-                ))}
-              </div>
-            ) : (
-              <form onSubmit={createGroup}>
-                <div className="form-group">
-                  <label>Group name</label>
-                  <input required value={groupName} onChange={(e) => setGroupName(e.target.value)} placeholder="e.g. Marketing Team" />
-                </div>
 
-                <div className="form-group">
-                  <label>Members</label>
-                  <div style={{ display: "flex", flexDirection: "column", gap: 6, maxHeight: 220, overflowY: "auto" }}>
-                    {chattableUsers.map((u) => (
-                      <label key={u.id} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12 }}>
-                        <input type="checkbox" checked={selectedUserIds.includes(u.id)} onChange={() => toggleUserSelection(u.id)} />
-                        {u.name} <span style={{ color: "var(--text-muted)", fontSize: 10 }}>({u.role})</span>
-                      </label>
-                    ))}
+              <div className="chat-user-list">
+
+                {chattableUsers.length === 0 ? (
+
+                  <div className="chat-users-empty">
+                    No teammates available.
                   </div>
+
+                ) : (
+
+                  chattableUsers.map((chatUser) => (
+
+                    <button
+                      key={chatUser.id}
+                      type="button"
+                      className="chat-user-option"
+                      onClick={() =>
+                        startDirectChat(
+                          chatUser.id
+                        )
+                      }
+                    >
+
+                      <div className="chat-user-avatar">
+                        {initials(
+                          chatUser.name
+                        )}
+                      </div>
+
+                      <div className="chat-user-info">
+
+                        <strong>
+                          {chatUser.name}
+                        </strong>
+
+                        <span>
+                          {chatUser.role}
+                        </span>
+
+                      </div>
+
+                      <span className="chat-user-arrow">
+                        →
+                      </span>
+
+                    </button>
+
+                  ))
+
+                )}
+
+              </div>
+
+            ) : (
+
+              <form
+                className="chat-group-form"
+                onSubmit={createGroup}
+              >
+
+                <div className="form-group">
+
+                  <label>
+                    Group name
+                  </label>
+
+                  <input
+                    required
+                    value={groupName}
+                    onChange={(event) =>
+                      setGroupName(
+                        event.target.value
+                      )
+                    }
+                    placeholder="e.g. Marketing Team"
+                  />
+
                 </div>
 
-                <button className="auth-button" type="submit">
+                <div className="form-group">
+
+                  <div className="chat-members-label">
+
+                    <label>
+                      Members
+                    </label>
+
+                    <span>
+                      {selectedUserIds.length} selected
+                    </span>
+
+                  </div>
+
+                  <div className="chat-members-list">
+
+                    {chattableUsers.map(
+                      (chatUser) => (
+
+                        <label
+                          key={chatUser.id}
+                          className={`chat-member-option ${
+                            selectedUserIds.includes(
+                              chatUser.id
+                            )
+                              ? "selected"
+                              : ""
+                          }`}
+                        >
+
+                          <input
+                            type="checkbox"
+                            checked={selectedUserIds.includes(
+                              chatUser.id
+                            )}
+                            onChange={() =>
+                              toggleUserSelection(
+                                chatUser.id
+                              )
+                            }
+                          />
+
+                          <div className="chat-member-avatar">
+                            {initials(
+                              chatUser.name
+                            )}
+                          </div>
+
+                          <div>
+
+                            <strong>
+                              {chatUser.name}
+                            </strong>
+
+                            <span>
+                              {chatUser.role}
+                            </span>
+
+                          </div>
+
+                        </label>
+
+                      )
+                    )}
+
+                  </div>
+
+                </div>
+
+                <button
+                  className="chat-create-group-button"
+                  type="submit"
+                  disabled={
+                    !groupName.trim() ||
+                    selectedUserIds.length === 0
+                  }
+                >
                   Create Group
+                  <span>→</span>
                 </button>
+
               </form>
+
             )}
+
           </div>
+
         </div>
+
       )}
+
     </div>
   );
 };

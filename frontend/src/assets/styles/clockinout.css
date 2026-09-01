@@ -1,0 +1,618 @@
+/* =========================================================
+   CLOCK IN / OUT TRACKER
+========================================================= */
+
+.tracker-page {
+  width: 100%;
+}
+
+.tracker-header {
+  margin-bottom: 18px;
+}
+
+.tracker-live-status {
+  margin-bottom: 18px;
+}
+
+/* =========================================================
+   TRACKER CONTAINER
+========================================================= */
+
+.tracker-container {
+  width: 100%;
+  max-width: 900px;
+  margin: 0 auto;
+}
+
+.tracker-card {
+  position: relative;
+  overflow: hidden;
+  padding: 42px 42px 36px;
+  text-align: center;
+  animation: dashboardFadeUp 0.55s ease both;
+}
+
+.tracker-card::before {
+  content: "";
+  position: absolute;
+  width: 360px;
+  height: 360px;
+  top: -190px;
+  left: 50%;
+  transform: translateX(-50%);
+  border-radius: 50%;
+  background: rgba(79, 70, 229, 0.035);
+  pointer-events: none;
+}
+
+/* =========================================================
+   TRACKER VISUAL
+========================================================= */
+
+.tracker-visual {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin-bottom: 27px;
+}
+
+.tracker-ring {
+  width: 155px;
+  height: 155px;
+  position: relative;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background:
+    conic-gradient(
+      #e8ebf0,
+      #f4f5f7,
+      #e8ebf0
+    );
+  box-shadow:
+    0 15px 35px rgba(15, 23, 42, 0.08);
+  transition:
+    transform 0.3s ease,
+    box-shadow 0.3s ease;
+}
+
+.tracker-ring.tracking {
+  background:
+    conic-gradient(
+      #4f46e5,
+      #818cf8,
+      #c7d2fe,
+      #4f46e5
+    );
+
+  animation:
+    trackerRingRotate 4s linear infinite;
+  box-shadow:
+    0 15px 40px rgba(79, 70, 229, 0.18);
+}
+
+.tracker-ring-glow {
+  position: absolute;
+  inset: 6px;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.9);
+}
+
+.tracker-ring-inner {
+  width: 116px;
+  height: 116px;
+  position: relative;
+  z-index: 2;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: #ffffff;
+  box-shadow:
+    inset 0 0 0 1px #edf0f3,
+    0 5px 15px rgba(15, 23, 42, 0.05);
+}
+
+.tracker-ring-inner span {
+  color: #4f46e5;
+  font-size: 43px;
+  line-height: 1;
+  font-weight: 400;
+}
+
+.tracker-ring:not(.tracking)
+.tracker-ring-inner span {
+  color: #94a3b8;
+}
+
+/* =========================================================
+   TRACKER CONTENT
+========================================================= */
+
+.tracker-content {
+  position: relative;
+  z-index: 2;
+  max-width: 620px;
+  margin: 0 auto 28px;
+}
+
+.tracker-content .section-kicker {
+  margin-bottom: 7px;
+}
+
+.tracker-content h2 {
+  margin: 0;
+  color: #172033;
+  font-size: 24px;
+  line-height: 1.25;
+  font-weight: 750;
+  letter-spacing: -0.5px;
+}
+
+.tracker-description {
+  max-width: 530px;
+  margin: 8px auto 0;
+  color: #718096;
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+/* =========================================================
+   STATUS GRID
+========================================================= */
+
+.tracker-status-grid {
+  position: relative;
+  z-index: 2;
+  display: grid;
+  grid-template-columns:
+    repeat(2, minmax(0, 1fr));
+  gap: 11px;
+  margin-top: 25px;
+  text-align: left;
+}
+
+.tracker-status-item {
+  min-width: 0;
+  min-height: 72px;
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 13px;
+  overflow: hidden;
+  border: 1px solid #e1e5eb;
+  border-radius: 11px;
+  background: #fafbfc;
+  transition:
+    transform 0.2s ease,
+    border-color 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+.tracker-status-item:hover {
+  transform: translateY(-2px);
+  border-color: #d1d6df;
+  box-shadow:
+    0 8px 20px rgba(15, 23, 42, 0.06);
+}
+
+.tracker-status-item.productive {
+  border-color: #cce9dd;
+  background: #f7fcfa;
+}
+
+.tracker-status-item.nonproductive {
+  border-color: #f2d0d0;
+  background: #fffafa;
+}
+
+.tracker-status-item.idle {
+  border-color: #f1dfb8;
+  background: #fffdf7;
+}
+
+.tracker-status-icon {
+  width: 34px;
+  height: 34px;
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  border-radius: 9px;
+  background: #eef0ff;
+  color: #4f46e5;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.tracker-status-item.productive
+.tracker-status-icon {
+  background: #ecfdf5;
+  color: #059669;
+}
+
+.tracker-status-item.nonproductive
+.tracker-status-icon {
+  background: #fef2f2;
+  color: #dc2626;
+}
+
+.tracker-status-item.idle
+.tracker-status-icon {
+  background: #fffbeb;
+  color: #d97706;
+}
+
+.tracker-status-content {
+  min-width: 0;
+  flex: 1;
+}
+
+.tracker-status-content span,
+.tracker-status-content strong {
+  display: block;
+}
+
+.tracker-status-content span {
+  color: #8a94a3;
+  font-size: 8px;
+  font-weight: 750;
+  letter-spacing: 0.08em;
+}
+
+.tracker-status-content strong {
+  margin-top: 3px;
+  overflow: hidden;
+  color: #263143;
+  font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.tracker-status-dot {
+  width: 7px;
+  height: 7px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: #cbd5e1;
+}
+
+.tracker-status-item.productive
+.tracker-status-dot {
+  background: #10b981;
+  box-shadow:
+    0 0 0 4px rgba(16, 185, 129, 0.08);
+}
+
+.tracker-status-item.nonproductive
+.tracker-status-dot {
+  background: #ef4444;
+  box-shadow:
+    0 0 0 4px rgba(239, 68, 68, 0.08);
+}
+
+.tracker-status-item.idle
+.tracker-status-dot {
+  background: #f59e0b;
+  box-shadow:
+    0 0 0 4px rgba(245, 158, 11, 0.08);
+}
+
+/* =========================================================
+   CURRENT STATUS MESSAGE
+========================================================= */
+
+.tracker-current-status {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  margin-top: 13px;
+  padding: 11px 13px;
+  border: 1px solid #dfe3ea;
+  border-radius: 10px;
+  background: #f8fafc;
+  text-align: left;
+}
+
+.tracker-current-status-icon {
+  width: 31px;
+  height: 31px;
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  border-radius: 8px;
+  background: #eef0ff;
+  color: #4f46e5;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.tracker-current-status strong,
+.tracker-current-status span {
+  display: block;
+}
+
+.tracker-current-status strong {
+  color: #263143;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.tracker-current-status span {
+  margin-top: 2px;
+  color: #7b8798;
+  font-size: 9px;
+}
+
+.tracker-current-status.productive {
+  border-color: #cce9dd;
+  background: #f7fcfa;
+}
+
+.tracker-current-status.productive
+.tracker-current-status-icon {
+  background: #ecfdf5;
+  color: #059669;
+}
+
+.tracker-current-status.nonproductive {
+  border-color: #f2d0d0;
+  background: #fffafa;
+}
+
+.tracker-current-status.nonproductive
+.tracker-current-status-icon {
+  background: #fef2f2;
+  color: #dc2626;
+}
+
+.tracker-current-status.idle {
+  border-color: #f1dfb8;
+  background: #fffdf7;
+}
+
+.tracker-current-status.idle
+.tracker-current-status-icon {
+  background: #fffbeb;
+  color: #d97706;
+}
+
+/* =========================================================
+   START SECTION
+========================================================= */
+
+.tracker-start-section {
+  position: relative;
+  z-index: 2;
+  margin-top: 26px;
+}
+
+.tracker-ready-box {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  max-width: 480px;
+  margin: 0 auto 17px;
+  padding: 12px 14px;
+  border: 1px solid #dfe3ea;
+  border-radius: 10px;
+  background: #f8fafc;
+  text-align: left;
+}
+
+.tracker-ready-icon {
+  width: 32px;
+  height: 32px;
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  border-radius: 8px;
+  background: #ecfdf5;
+  color: #059669;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.tracker-ready-box strong,
+.tracker-ready-box span {
+  display: block;
+}
+
+.tracker-ready-box strong {
+  color: #263143;
+  font-size: 10px;
+}
+
+.tracker-ready-box span {
+  margin-top: 2px;
+  color: #7b8798;
+  font-size: 9px;
+}
+
+/* =========================================================
+   BUTTONS
+========================================================= */
+
+.tracker-button {
+  position: relative;
+  z-index: 2;
+  min-width: 150px;
+  height: 43px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 22px;
+  padding: 0 19px;
+  border: none;
+  border-radius: 9px;
+  color: #ffffff;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  transition:
+    transform 0.2s ease,
+    box-shadow 0.2s ease,
+    background 0.2s ease;
+}
+
+.tracker-button span {
+  font-size: 12px;
+}
+
+.primary-button {
+  background: #4f46e5;
+  box-shadow:
+    0 7px 18px rgba(79, 70, 229, 0.2);
+}
+
+.primary-button:hover {
+  background: #4338ca;
+  transform: translateY(-2px);
+  box-shadow:
+    0 11px 24px rgba(79, 70, 229, 0.25);
+}
+
+.danger-button {
+  background: #ef4444;
+  box-shadow:
+    0 7px 18px rgba(239, 68, 68, 0.15);
+}
+
+.danger-button:hover {
+  background: #dc2626;
+  transform: translateY(-2px);
+  box-shadow:
+    0 11px 24px rgba(239, 68, 68, 0.22);
+}
+
+.tracker-button:active {
+  transform: translateY(0);
+}
+
+.tracker-button:focus-visible {
+  outline: 3px solid rgba(79, 70, 229, 0.2);
+  outline-offset: 3px;
+}
+
+/* =========================================================
+   LOADING
+========================================================= */
+
+.dashboard-loading {
+  min-height: 65vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  color: #64748b;
+}
+
+.dashboard-loading strong {
+  color: #263143;
+  font-size: 14px;
+}
+
+.dashboard-loading span {
+  font-size: 11px;
+}
+
+/* =========================================================
+   TRACKER ANIMATION
+========================================================= */
+
+@keyframes trackerRingRotate {
+  from {
+    transform: rotate(0deg);
+  }
+
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Keep inner content visually upright */
+.tracker-ring.tracking
+.tracker-ring-inner {
+  animation:
+    trackerInnerRotate 4s linear infinite;
+}
+
+@keyframes trackerInnerRotate {
+  from {
+    transform: rotate(0deg);
+  }
+
+  to {
+    transform: rotate(-360deg);
+  }
+}
+
+/* =========================================================
+   RESPONSIVE
+========================================================= */
+
+@media (max-width: 700px) {
+  .tracker-card {
+    padding: 32px 22px 28px;
+  }
+
+  .tracker-status-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .tracker-content h2 {
+    font-size: 21px;
+  }
+
+  .tracker-description {
+    font-size: 11px;
+  }
+}
+
+@media (max-width: 450px) {
+  .tracker-card {
+    padding: 27px 16px 24px;
+  }
+
+  .tracker-ring {
+    width: 135px;
+    height: 135px;
+  }
+
+  .tracker-ring-inner {
+    width: 101px;
+    height: 101px;
+  }
+
+  .tracker-ring-inner span {
+    font-size: 36px;
+  }
+
+  .tracker-content {
+    margin-bottom: 22px;
+  }
+
+  .tracker-status-item {
+    min-height: 66px;
+    padding: 11px;
+  }
+
+  .tracker-current-status {
+    align-items: flex-start;
+  }
+
+  .tracker-button {
+    width: 100%;
+    margin-top: 18px;
+  }
+
+  .tracker-ready-box {
+    align-items: flex-start;
+  }
+}

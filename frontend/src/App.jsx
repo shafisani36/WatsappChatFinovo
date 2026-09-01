@@ -11,6 +11,8 @@ import Dashboard from "./pages/Dashboard";
 
 import ClockInOut from "./pages/ClockInOut";
 
+import VideoRecordings from "./pages/VideoRecordings";
+
 import Login from "./pages/Login";
 
 import Register from "./pages/Register";
@@ -26,6 +28,7 @@ import Tasks from "./pages/Tasks";
 import Leaderboard from "./pages/Leaderboard";
 
 import Chat from "./pages/Chat";
+import EmployeeProgress from "./pages/EmployeeProgress";
 
 export default function App() {
   return (
@@ -54,11 +57,12 @@ export default function App() {
             <Route path="/clock" element={<ClockInOut />} />
             <Route path="/download-agent" element={<DownloadAgent />} />
             <Route path="/reports" element={<Reports />} />
-
+            <Route path="/employee-progress" element={<EmployeeProgress />} />
             <Route path="/history" element={<SessionHistory />} />
 
             <Route path="/team" element={<TeamReport />} />
 
+            <Route path="/recordings" element={<VideoRecordings />} />
             <Route path="/tasks" element={<Tasks />} />
 
             <Route path="/leaderboard" element={<Leaderboard />} />

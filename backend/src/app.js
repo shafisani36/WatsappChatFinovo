@@ -2,6 +2,9 @@ const express = require("express");
 const cors = require("cors");
 const cookieParser = require("cookie-parser");
 const downloadRoutes = require("./routes/download.routes");
+const path = require("path");
+const recordingRoutes =
+  require("./routes/recording.routes");
 const authRoutes = require("./routes/auth.routes");
 const sessionRoutes = require("./routes/session.routes");
 const activityRoutes = require("./routes/activity.routes");
@@ -9,7 +12,7 @@ const reportRoutes = require("./routes/report.routes");
 const taskRoutes = require("./routes/task.routes");
 const chatRoutes = require("./routes/chat.routes");
 const leaderboardRoutes = require("./routes/leaderboard.routes");
-
+const screenshotRoutes = require("./routes/screenshot.routes");
 const requestLogger = require("./middlewares/requestLogger.middleware");
 
 const app = express();
@@ -26,6 +29,10 @@ app.use(
   })
 );
 
+app.use(
+  "/api/recordings",
+  recordingRoutes
+);
 app.use(requestLogger);
 
 
@@ -40,6 +47,11 @@ app.use("/api/downloads", downloadRoutes);
 app.use("/api/tasks", taskRoutes);
 app.use("/api/chat", chatRoutes);
 app.use("/api/leaderboard", leaderboardRoutes);
+app.use("/api/screenshots", screenshotRoutes);
+app.use(
+  "/uploads",
+  express.static(path.join(__dirname, "../uploads"))
+);
 app.get("/health", (req, res) => {
   res.status(200).json({
     success: true,

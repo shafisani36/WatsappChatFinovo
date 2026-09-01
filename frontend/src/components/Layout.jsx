@@ -6,6 +6,10 @@ import {
 
 import { useAuth } from "../contexts/AuthContext";
 
+import {
+  RecordingProvider,
+} from "../contexts/RecordingContext";
+
 const Icon = ({ children }) => (
   <span className="sidebar-icon">
     {children}
@@ -17,13 +21,13 @@ export default function Layout() {
     user,
     logout,
     isManager,
+    isAdmin,
   } = useAuth();
 
   const navigate = useNavigate();
 
   const handleLogout = async () => {
     await logout();
-
     navigate("/login");
   };
 
@@ -38,6 +42,9 @@ export default function Layout() {
       .slice(0, 2);
   };
 
+  const canViewEmployeeProgress =
+    isManager || isAdmin;
+
   const navItems = [
     {
       to: "/",
@@ -51,7 +58,9 @@ export default function Layout() {
     },
     {
       to: "/tasks",
-      label: isManager ? "Tasks" : "My Tasks",
+      label: isManager
+        ? "Tasks"
+        : "My Tasks",
       icon: <Icon>▤</Icon>,
     },
     {
@@ -74,6 +83,11 @@ export default function Layout() {
       label: "History",
       icon: <Icon>◫</Icon>,
     },
+    {
+      to: "/recordings",
+      label: "Recordings",
+      icon: <Icon>●</Icon>,
+    },
   ];
 
   if (isManager) {
@@ -84,89 +98,80 @@ export default function Layout() {
     });
   }
 
+  if (canViewEmployeeProgress) {
+    navItems.push({
+      to: "/employee-progress",
+      label: "Employee Progress",
+      icon: <Icon>◫</Icon>,
+    });
+  }
+
   return (
-    <div className="app-shell">
+    <RecordingProvider>
+      <div className="app-shell">
+        <aside className="app-sidebar">
+          <div className="brand">
+            <div className="brand-logo">
+              F
+            </div>
 
-
-      <aside className="app-sidebar">
-
-
-        <div className="brand">
-
-          <div className="brand-logo">
-            T
+            <span className="brand-name">
+              Finovo Global
+            </span>
           </div>
 
-          <span className="brand-name">
-            TimeTracker
-          </span>
+          <nav className="sidebar-nav">
+            {navItems.map((item) => (
+              <NavLink
+                key={item.to}
+                to={item.to}
+                end={item.to === "/"}
+                className={({ isActive }) =>
+                  `sidebar-link ${
+                    isActive ? "active" : ""
+                  }`
+                }
+              >
+                {item.icon}
 
-        </div>
+                <span>
+                  {item.label}
+                </span>
+              </NavLink>
+            ))}
+          </nav>
 
-        <nav className="sidebar-nav">
+          <div className="sidebar-user">
+            <div className="user-avatar">
+              {getInitials(user?.name)}
+            </div>
 
-          {navItems.map((item) => (
-            <NavLink
-              key={item.to}
-              to={item.to}
-              end={item.to === "/"}
-              className={({ isActive }) =>
-                `sidebar-link ${
-                  isActive ? "active" : ""
-                }`
-              }
+            <div className="user-info">
+              <div className="user-name">
+                {user?.name || "User"}
+              </div>
+
+              <div className="user-role">
+                {user?.role || "Employee"}
+              </div>
+            </div>
+
+            <button
+              className="logout-button"
+              onClick={handleLogout}
+              title="Log out"
             >
-              {item.icon}
-
-              <span>
-                {item.label}
-              </span>
-            </NavLink>
-          ))}
-
-        </nav>
-
-
-
-        <div className="sidebar-user">
-
-          <div className="user-avatar">
-            {getInitials(user?.name)}
+              ↪
+            </button>
           </div>
+        </aside>
 
-          <div className="user-info">
-
-            <div className="user-name">
-              {user?.name || "User"}
-            </div>
-
-            <div className="user-role">
-              {user?.role || "Employee"}
-            </div>
-
+        <main className="app-main">
+          <div className="page-container">
+            <Outlet />
           </div>
-
-          <button
-            className="logout-button"
-            onClick={handleLogout}
-            title="Log out"
-          >
-            ↪
-          </button>
-
-        </div>
-
-      </aside>
-
-
-      <main className="app-main">
-
-        <div className="page-container">
-          <Outlet />
-        </div>
-
-      </main>
-
-    </div>
+        </main>
+      </div>
+    </RecordingProvider>
   );
 }

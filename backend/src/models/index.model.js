@@ -9,9 +9,20 @@ const Task = require("./task.model");
 const Conversation = require("./conversation.model");
 const ConversationParticipant = require("./conversationParticipant.model");
 const Message = require("./message.model");
+const Recording = require("./recording.model");
 
 Company.hasMany(User, { foreignKey: "tenantId", onDelete: "CASCADE" });
 User.belongsTo(Company, { foreignKey: "tenantId" });
+
+User.hasMany(Recording, {
+  foreignKey: "userId",
+  as: "recordings",
+});
+
+Recording.belongsTo(User, {
+  foreignKey: "userId",
+  as: "user",
+});
 
 Company.hasMany(RefreshToken, { foreignKey: "tenantId", onDelete: "CASCADE" });
 RefreshToken.belongsTo(Company, { foreignKey: "tenantId" });
@@ -34,7 +45,10 @@ WorkSession.belongsTo(User, { foreignKey: "userId" });
 User.hasMany(ActivityEvent, { foreignKey: "userId", onDelete: "CASCADE" });
 ActivityEvent.belongsTo(User, { foreignKey: "userId" });
 
-WorkSession.hasMany(ActivityEvent, { foreignKey: "sessionId", onDelete: "CASCADE" });
+WorkSession.hasMany(ActivityEvent, {
+  foreignKey: "sessionId",
+  onDelete: "CASCADE",
+});
 ActivityEvent.belongsTo(WorkSession, { foreignKey: "sessionId" });
 
 Company.hasMany(Task, { foreignKey: "tenantId", onDelete: "CASCADE" });
@@ -49,16 +63,32 @@ Task.belongsTo(User, { as: "creator", foreignKey: "createdById" });
 Company.hasMany(Conversation, { foreignKey: "tenantId", onDelete: "CASCADE" });
 Conversation.belongsTo(Company, { foreignKey: "tenantId" });
 
-User.hasMany(Conversation, { as: "createdConversations", foreignKey: "createdById" });
+User.hasMany(Conversation, {
+  as: "createdConversations",
+  foreignKey: "createdById",
+});
 Conversation.belongsTo(User, { as: "creator", foreignKey: "createdById" });
 
-Conversation.hasMany(ConversationParticipant, { as: "participants", foreignKey: "conversationId", onDelete: "CASCADE" });
-ConversationParticipant.belongsTo(Conversation, { foreignKey: "conversationId" });
+Conversation.hasMany(ConversationParticipant, {
+  as: "participants",
+  foreignKey: "conversationId",
+  onDelete: "CASCADE",
+});
+ConversationParticipant.belongsTo(Conversation, {
+  foreignKey: "conversationId",
+});
 
-User.hasMany(ConversationParticipant, { foreignKey: "userId", onDelete: "CASCADE" });
+User.hasMany(ConversationParticipant, {
+  foreignKey: "userId",
+  onDelete: "CASCADE",
+});
 ConversationParticipant.belongsTo(User, { foreignKey: "userId" });
 
-Conversation.hasMany(Message, { as: "messages", foreignKey: "conversationId", onDelete: "CASCADE" });
+Conversation.hasMany(Message, {
+  as: "messages",
+  foreignKey: "conversationId",
+  onDelete: "CASCADE",
+});
 Message.belongsTo(Conversation, { foreignKey: "conversationId" });
 
 User.hasMany(Message, { as: "sentMessages", foreignKey: "senderId" });

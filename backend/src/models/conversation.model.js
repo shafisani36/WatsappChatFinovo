@@ -25,8 +25,6 @@ const Conversation = sequelize.define(
       defaultValue: "DIRECT",
     },
 
-    // Only used for GROUP conversations. DIRECT chats are displayed using
-    // the other participant's name instead.
     name: {
       type: DataTypes.STRING,
       allowNull: true,
