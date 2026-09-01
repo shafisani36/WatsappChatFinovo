@@ -6,8 +6,9 @@ node_modules/
 logs/
 *.log
 public/downloads/
+backend/uploads/recordings/
+backend/uploads/screenshots/
 
-uploads/
 
 # Recording files
 *.mp4
