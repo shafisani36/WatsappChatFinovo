@@ -1,50 +1,85 @@
-import React from "react";
 import { Routes, Route, Navigate } from "react-router-dom";
-import { useAuth } from "./context/AuthContext";
-import { isManagerial } from "./constants/roles";
-import Sidebar from "./components/Sidebar";
+
+import { Toaster } from "react-hot-toast";
+import DownloadAgent from "./pages/DownloadAgent";
+
+import Layout from "./components/Layout";
+
+import ProtectedRoute from "./components/ProtectedRoute";
+
+import Dashboard from "./pages/Dashboard";
+
+import ClockInOut from "./pages/ClockInOut";
+
+import VideoRecordings from "./pages/VideoRecordings";
 
 import Login from "./pages/Login";
-import Dashboard from "./pages/Dashboard";
+
+import Register from "./pages/Register";
+
+import ForgotPassword from "./pages/ForgotPassword";
+
+import Reports from "./pages/Reports";
+
+import SessionHistory from "./pages/SessionHistory";
+
+import TeamReport from "./pages/TeamReport";
+
 import Tasks from "./pages/Tasks";
-import Employees from "./pages/Employees";
+
 import Leaderboard from "./pages/Leaderboard";
 
-function ProtectedLayout({ children }) {
-  const { user } = useAuth();
-  if (!user) return <Navigate to="/login" replace />;
-  return (
-    <div className="flex">
-      <Sidebar />
-      <main className="ml-60 flex-1 p-8">{children}</main>
-    </div>
-  );
-}
+import Chat from "./pages/Chat";
+import EmployeeProgress from "./pages/EmployeeProgress";
 
 export default function App() {
-  const { user } = useAuth();
-  const managerial = isManagerial(user?.role);
-
   return (
-    <Routes>
-      <Route path="/login" element={user ? <Navigate to="/" /> : <Login />} />
+    <>
+      <Toaster
+        position="top-right"
+        toastOptions={{
+          duration: 3000,
 
-      <Route
-        path="/"
-        element={<ProtectedLayout>{managerial ? <Dashboard /> : <Tasks />}</ProtectedLayout>}
+          style: {
+            borderRadius: "10px",
+            fontSize: "13px",
+          },
+        }}
       />
-      {managerial && <Route path="/tasks" element={<ProtectedLayout><Tasks /></ProtectedLayout>} />}
-      <Route
-        path="/employees"
-        element={
-          <ProtectedLayout>
-            {["ADMIN", "MANAGER"].includes(user?.role) ? <Employees /> : <Navigate to="/" />}
-          </ProtectedLayout>
-        }
-      />
-      <Route path="/leaderboard" element={<ProtectedLayout><Leaderboard /></ProtectedLayout>} />
 
-      <Route path="*" element={<Navigate to="/" />} />
-    </Routes>
+      <Routes>
+        <Route path="/login" element={<Login />} />
+
+        <Route path="/register" element={<Register />} />
+
+        <Route
+          path="/forgot-password"
+          element={<ForgotPassword />}
+        />
+
+        <Route element={<ProtectedRoute />}>
+          <Route element={<Layout />}>
+            <Route path="/" element={<Dashboard />} />
+
+            <Route path="/clock" element={<ClockInOut />} />
+            <Route path="/download-agent" element={<DownloadAgent />} />
+            <Route path="/reports" element={<Reports />} />
+            <Route path="/employee-progress" element={<EmployeeProgress />} />
+            <Route path="/history" element={<SessionHistory />} />
+
+            <Route path="/team" element={<TeamReport />} />
+
+            <Route path="/recordings" element={<VideoRecordings />} />
+            <Route path="/tasks" element={<Tasks />} />
+
+            <Route path="/leaderboard" element={<Leaderboard />} />
+
+            <Route path="/chat" element={<Chat />} />
+          </Route>
+        </Route>
+
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+    </>
   );
 }

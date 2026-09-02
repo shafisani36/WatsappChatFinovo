@@ -1,0 +1,26 @@
+node_modules/
+.env
+.env.*
+!.env.example
+
+logs/
+*.log
+public/downloads/
+
+uploads/recordings/*
+uploads/screenshots/*
+
+!uploads/recordings/.gitkeep
+!uploads/screenshots/.gitkeep
+
+# Recording files
+*.mp4
+*.webm
+*.mov
+*.avi
+*.mkv
+
+# Screenshot files
+*.png
+*.jpg
+*.jpeg

@@ -1,111 +1,1147 @@
-import React, { useEffect, useState } from "react";
-import { ListChecks, Clock, Activity, CheckCircle2 } from "lucide-react";
-import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from "recharts";
-import api from "../api/axios";
-import { getSocket } from "../api/socket";
-import StatCard from "../components/StatCard";
-import TopBar from "../components/TopBar";
-import { Badge, PointsBadge, RoleBadge } from "../components/Badge";
+import { useEffect, useMemo, useState } from "react";
+import { Link } from "react-router-dom";
+import "../assets/styles/dashboard.css";
+import {
+  ResponsiveContainer,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  Tooltip,
+  CartesianGrid,
+  PieChart,
+  Pie,
+  Cell,
+  AreaChart,
+  Area,
+} from "recharts";
 
-const STATUS_COLORS = { Pending: "#94a3b8", "In Progress": "#3b82f6", Completed: "#10b981" };
+import api from "../api/axios";
+
+const formatDuration = (seconds) => {
+  const value = Number(seconds) || 0;
+
+  if (value <= 0) {
+    return "00:00:00";
+  }
+
+  const hours = Math.floor(value / 3600);
+
+  const minutes = Math.floor(
+    (value % 3600) / 60
+  );
+
+  const secs = Math.floor(value % 60);
+
+  return `${String(hours).padStart(
+    2,
+    "0"
+  )}:${String(minutes).padStart(
+    2,
+    "0"
+  )}:${String(secs).padStart(
+    2,
+    "0"
+  )}`;
+};
+
+
+const formatShortDuration = (seconds) => {
+  const value = Number(seconds) || 0;
+
+  if (value <= 0) {
+    return "0m";
+  }
+
+  const hours = Math.floor(value / 3600);
+
+  const minutes = Math.floor(
+    (value % 3600) / 60
+  );
+
+  if (hours > 0) {
+    return `${hours}h ${minutes}m`;
+  }
+
+  return `${minutes}m`;
+};
+
 
 export default function Dashboard() {
-  const [tasks, setTasks] = useState([]);
+  const [dailyData, setDailyData] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [lastUpdated, setLastUpdated] = useState(new Date());
+  const [weeklyTrend, setWeeklyTrend] = useState([]);
 
-  const load = async () => {
-    const { data } = await api.get("/tasks");
-    setTasks(data);
-    setLoading(false);
+
+  const fetchDashboard = async () => {
+    try {
+      const today =
+        new Date()
+          .toISOString()
+          .split("T")[0];
+
+      const response = await api.get(
+        `/reports/daily?date=${today}`
+      );
+
+      setDailyData(
+        response.data?.data || null
+      );
+
+      setLastUpdated(new Date());
+
+    } catch (error) {
+      console.error(
+        "Failed to load dashboard:",
+        error
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
+
+
+  const fetchWeeklyTrend = async () => {
+    try {
+      const dates = [];
+
+      for (let i = 6; i >= 0; i--) {
+        const d = new Date();
+        d.setDate(d.getDate() - i);
+        dates.push(
+          d.toISOString().split("T")[0]
+        );
+      }
+
+      const responses = await Promise.all(
+        dates.map((date) =>
+          api
+            .get(`/reports/daily?date=${date}`)
+            .catch(() => null)
+        )
+      );
+
+      const trend = responses.map(
+        (response, index) => {
+          const data =
+            response?.data?.data || {};
+
+          const work =
+            Number(data.workingTime) || 0;
+          const idleT =
+            Number(data.idleTime) || 0;
+          const nonProd =
+            Number(
+              data.nonProductiveTime
+            ) || 0;
+
+          const total =
+            work + idleT + nonProd;
+
+          const pct =
+            total > 0
+              ? Math.round(
+                  (work / total) * 100
+                )
+              : 0;
+
+          const label = new Date(
+            dates[index]
+          ).toLocaleDateString("en-US", {
+            weekday: "short",
+          });
+
+          return {
+            name: label,
+            value: pct,
+          };
+        }
+      );
+
+      setWeeklyTrend(trend);
+    } catch (error) {
+      console.error(
+        "Failed to load weekly trend:",
+        error
+      );
+    }
   };
 
   useEffect(() => {
-    load();
-    const socket = getSocket();
-    const onUpdate = () => load();
-    socket.on("task:updated", onUpdate);
-    return () => socket.off("task:updated", onUpdate);
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    fetchDashboard();
+    fetchWeeklyTrend();
+
+    const interval = setInterval(
+      fetchDashboard,
+      5000
+    );
+
+    return () => clearInterval(interval);
   }, []);
 
-  if (loading) return <p className="text-slate-500">Loading...</p>;
 
-  const pending = tasks.filter((t) => t.status === "Pending").length;
-  const inProgress = tasks.filter((t) => t.status === "In Progress").length;
-  const completed = tasks.filter((t) => t.status === "Completed").length;
-  const recent = tasks.slice(0, 8);
+  const productive =
+    Number(
+      dailyData?.workingTime
+    ) || 0;
 
-  const chartData = [
-    { name: "Pending", value: pending },
-    { name: "In Progress", value: inProgress },
-    { name: "Completed", value: completed },
-  ].filter((d) => d.value > 0);
+  const idle =
+    Number(
+      dailyData?.idleTime
+    ) || 0;
+
+  const nonProductive =
+    Number(
+      dailyData?.nonProductiveTime
+    ) || 0;
+
+  const totalTracked =
+    productive +
+    idle +
+    nonProductive;
+
+  const productivity =
+    totalTracked > 0
+      ? Math.round(
+          (productive /
+            totalTracked) *
+            100
+        )
+      : 0;
+
+
+  const activityData = useMemo(() => {
+    return [
+      {
+        name: "Productive",
+        minutes: Math.round(
+          productive / 60
+        ),
+      },
+      {
+        name: "Non-productive",
+        minutes: Math.round(
+          nonProductive / 60
+        ),
+      },
+      {
+        name: "Idle",
+        minutes: Math.round(
+          idle / 60
+        ),
+      },
+    ];
+  }, [
+    productive,
+    nonProductive,
+    idle,
+  ]);
+
+  if (loading) {
+    return (
+      <div className="dashboard-loading">
+
+        <div className="dashboard-loader">
+          <div></div>
+        </div>
+
+        <strong>
+          Preparing your dashboard
+        </strong>
+
+        <span>
+          Loading your productivity data...
+        </span>
+
+      </div>
+    );
+  }
 
   return (
-    <div className="space-y-6">
-      <TopBar title="Overview" subtitle="Team activity at a glance" />
+    <div className="dashboard-page">
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <StatCard label="Total Tasks" value={tasks.length} icon={ListChecks} color="brand" />
-        <StatCard label="Pending" value={pending} icon={Clock} color="slate" />
-        <StatCard label="In Progress" value={inProgress} icon={Activity} color="blue" />
-        <StatCard label="Completed" value={completed} icon={CheckCircle2} color="emerald" />
-      </div>
+      <header className="dashboard-header">
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="bg-white border border-slate-200 rounded-xl overflow-hidden lg:col-span-2">
-          <div className="px-5 py-4 border-b border-slate-100">
-            <h2 className="font-semibold text-slate-900">Recent Tasks</h2>
+        <div className="dashboard-heading">
+
+          <div className="dashboard-title-row">
+
+
+            <div>
+
+              <div className="dashboard-title-line">
+
+                <h1>
+                  Overview
+                </h1>
+
+              </div>
+
+              <p>
+                Your productivity at a glance
+              </p>
+
+            </div>
+
           </div>
-          {recent.length === 0 ? (
-            <p className="text-sm text-slate-500 px-5 py-10 text-center">No tasks created yet.</p>
-          ) : (
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="text-left text-slate-500 border-b border-slate-100 bg-slate-50/50">
-                  <th className="px-5 py-3 font-medium">Task</th>
-                  <th className="px-5 py-3 font-medium">Assigned to</th>
-                  <th className="px-5 py-3 font-medium">Points</th>
-                  <th className="px-5 py-3 font-medium">Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {recent.map((t) => (
-                  <tr key={t.id} className="border-b border-slate-50 last:border-0 hover:bg-slate-50/50">
-                    <td className="px-5 py-3 font-medium text-slate-800">{t.title}</td>
-                    <td className="px-5 py-3">
-                      <div className="flex items-center gap-2">
-                        <span className="text-slate-600">{t.assignee?.name}</span>
-                        <RoleBadge role={t.assignee?.role} />
-                      </div>
-                    </td>
-                    <td className="px-5 py-3"><PointsBadge points={t.points} /></td>
-                    <td className="px-5 py-3"><Badge text={t.status} /></td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
+
         </div>
 
-        <div className="bg-white border border-slate-200 rounded-xl p-5">
-          <h2 className="font-semibold text-slate-900 mb-2">Status Breakdown</h2>
-          {chartData.length === 0 ? (
-            <p className="text-sm text-slate-500 py-10 text-center">No data yet.</p>
-          ) : (
-            <ResponsiveContainer width="100%" height={220}>
-              <PieChart>
-                <Pie data={chartData} dataKey="value" nameKey="name" innerRadius={45} outerRadius={80} paddingAngle={2}>
-                  {chartData.map((entry) => (
-                    <Cell key={entry.name} fill={STATUS_COLORS[entry.name]} />
-                  ))}
-                </Pie>
-                <Tooltip />
-                <Legend iconType="circle" wrapperStyle={{ fontSize: 12 }} />
-              </PieChart>
-            </ResponsiveContainer>
+
+        <Link
+          to="/download-agent"
+          className="dashboard-agent-button"
+        >
+
+          <span className="dashboard-agent-icon">
+            ↓
+          </span>
+
+          <span>
+            Desktop Agent
+          </span>
+
+          <span className="dashboard-agent-arrow">
+            →
+          </span>
+
+        </Link>
+
+      </header>
+
+<div className="dashboard-status-bar">
+  <div className="dashboard-status-left">
+    <span className="status-pulse"></span>
+    <div>
+      <strong>Tracking is running</strong>
+      <br/>
+      <span>Your activity is being monitored automatically</span>
+    </div>
+  </div>
+
+  <div className="dashboard-status-time">
+    Updated{" "}
+    {lastUpdated.toLocaleTimeString([], {
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+    })}
+  </div>
+</div>
+
+      <section className="dashboard-kpi-grid">
+
+        <MetricCard
+          label="Total tracked"
+          value={formatDuration(
+            totalTracked
           )}
+          icon="◷"
+          description="Total activity today"
+          delay="0.05s"
+        />
+
+        <MetricCard
+          label="Productive"
+          value={formatDuration(
+            productive
+          )}
+          icon="✓"
+          variant="success"
+          description="Focused work time"
+          delay="0.1s"
+        />
+
+        <MetricCard
+          label="Non-productive"
+          value={formatDuration(
+            nonProductive
+          )}
+          icon="!"
+          variant="danger"
+          description="Distraction time"
+          delay="0.15s"
+        />
+
+        <MetricCard
+          label="Idle"
+          value={formatDuration(
+            idle
+          )}
+          icon="◌"
+          variant="warning"
+          description="Inactive time"
+          delay="0.2s"
+        />
+
+        <MetricCard
+          label="Productivity"
+          value={`${productivity}%`}
+          icon="↗"
+          variant="success"
+          description="Overall efficiency"
+          progress={productivity}
+          delay="0.25s"
+        />
+
+      </section>
+
+
+      <section className="dashboard-analytics-grid">
+
+        <div className="dashboard-card analytics-card">
+
+          <div className="analytics-card-header">
+
+            <div>
+
+              <span className="section-kicker">
+                ACTIVITY
+              </span>
+
+              <h2>
+                Time distribution
+              </h2>
+
+              <p>
+                How your tracked time is being spent today
+              </p>
+
+            </div>
+
+            <div className="analytics-icon">
+              ◔
+            </div>
+
+          </div>
+
+
+          <div className="chart-container">
+
+            <ResponsiveContainer
+              width="100%"
+              height="100%"
+            >
+
+              <BarChart
+                data={activityData}
+                margin={{
+                  top: 15,
+                  right: 10,
+                  left: -15,
+                  bottom: 5,
+                }}
+              >
+
+                <CartesianGrid
+                  strokeDasharray="3 3"
+                  vertical={false}
+                  stroke="#232c3a"
+                />
+
+                <XAxis
+                  dataKey="name"
+                  axisLine={false}
+                  tickLine={false}
+                  tick={{
+                    fontSize: 10,
+                    fill: "#a3aec2",
+                  }}
+                />
+
+                <YAxis
+                  axisLine={false}
+                  tickLine={false}
+                  allowDecimals={false}
+                  tick={{
+                    fontSize: 9,
+                    fill: "#6f7c91",
+                  }}
+                  tickFormatter={(value) =>
+                    `${value}m`
+                  }
+                />
+
+                <Tooltip
+                  cursor={{
+                    fill: "rgba(8, 145, 178, 0.04)",
+                  }}
+                  contentStyle={{
+                    background: "#131a24",
+                    border:
+                      "1px solid #232c3a",
+                    borderRadius: "10px",
+                    boxShadow:
+                      "0 10px 30px rgba(0,0,0,0.35)",
+                    fontSize: "11px",
+                    color: "#edf1f7",
+                  }}
+                  formatter={(value) => [
+                    `${value} min`,
+                    "Time",
+                  ]}
+                />
+
+                <Bar
+                  dataKey="minutes"
+                  radius={[
+                    7,
+                    7,
+                    2,
+                    2,
+                  ]}
+                  animationDuration={1000}
+                  animationBegin={150}
+                >
+                  <Cell fill="#10b981" />
+                  <Cell fill="#ef4444" />
+                  <Cell fill="#f59e0b" />
+                </Bar>
+
+              </BarChart>
+
+            </ResponsiveContainer>
+
+          </div>
+
+
+          <div className="chart-footer">
+
+            <ChartLegend
+              label="Productive"
+              value={formatShortDuration(
+                productive
+              )}
+              type="productive"
+            />
+
+            <ChartLegend
+              label="Non-productive"
+              value={formatShortDuration(
+                nonProductive
+              )}
+              type="nonproductive"
+            />
+
+            <ChartLegend
+              label="Idle"
+              value={formatShortDuration(
+                idle
+              )}
+              type="idle"
+            />
+
+          </div>
+
         </div>
+
+        <div className="dashboard-card productivity-card">
+
+          <div className="analytics-card-header">
+
+            <div>
+
+              <span className="section-kicker">
+                PERFORMANCE
+              </span>
+
+              <h2>
+                Productivity score
+              </h2>
+
+              <p>
+                Your efficiency for today
+              </p>
+
+            </div>
+
+            <div className="analytics-icon">
+              ↗
+            </div>
+
+          </div>
+
+
+          <div className="productivity-chart">
+
+            <ResponsiveContainer
+              width="100%"
+              height="100%"
+            >
+
+              <PieChart>
+
+                <Pie
+                  data={[
+                    {
+                      name: "Productive",
+                      value: productivity,
+                    },
+                    {
+                      name: "Remaining",
+                      value:
+                        100 -
+                        productivity,
+                    },
+                  ]}
+                  cx="50%"
+                  cy="50%"
+                  innerRadius={76}
+                  outerRadius={94}
+                  startAngle={90}
+                  endAngle={-270}
+                  paddingAngle={1}
+                  dataKey="value"
+                  stroke="none"
+                  animationDuration={1200}
+                >
+
+                  <Cell fill="#10b981" />
+
+                  <Cell fill="#1a212c" />
+
+                </Pie>
+
+              </PieChart>
+
+            </ResponsiveContainer>
+
+
+            <div className="productivity-center">
+
+              <strong>
+                {productivity}%
+              </strong>
+
+              <span>
+                productive
+              </span>
+
+            </div>
+
+          </div>
+
+
+          <div className="productivity-message">
+
+            <div className="message-icon">
+              {productivity >= 70
+                ? "✦"
+                : "↗"}
+            </div>
+
+            <div>
+
+              <strong>
+                {productivity >= 80
+                  ? "Excellent focus"
+                  : productivity >= 60
+                  ? "Good progress"
+                  : totalTracked > 0
+                  ? "Room to improve"
+                  : "Start tracking"}
+              </strong>
+
+              <span>
+                {productivity >= 80
+                  ? "You're maintaining strong productivity."
+                  : productivity >= 60
+                  ? "Keep your focus going."
+                  : totalTracked > 0
+                  ? "Try reducing inactive and distracting time."
+                  : "Track your first session to see insights."}
+              </span>
+
+            </div>
+
+          </div>
+
+
+          <div className="productivity-stats">
+
+            <MiniStat
+              label="Focused"
+              value={formatShortDuration(
+                productive
+              )}
+              percentage={
+                totalTracked > 0
+                  ? Math.round(
+                      (productive /
+                        totalTracked) *
+                        100
+                    )
+                  : 0
+              }
+              type="success"
+            />
+
+            <MiniStat
+              label="Idle"
+              value={formatShortDuration(
+                idle
+              )}
+              percentage={
+                totalTracked > 0
+                  ? Math.round(
+                      (idle /
+                        totalTracked) *
+                        100
+                    )
+                  : 0
+              }
+              type="warning"
+            />
+
+            <MiniStat
+              label="Distraction"
+              value={formatShortDuration(
+                nonProductive
+              )}
+              percentage={
+                totalTracked > 0
+                  ? Math.round(
+                      (nonProductive /
+                        totalTracked) *
+                        100
+                    )
+                  : 0
+              }
+              type="danger"
+            />
+
+          </div>
+
+        </div>
+
+      </section>
+
+      <section className="dashboard-card trend-card">
+
+        <div className="analytics-card-header">
+
+          <div>
+
+            <span className="section-kicker">
+              INSIGHT
+            </span>
+
+            <h2>
+              Last 7 days productivity trend
+            </h2>
+
+            <p>
+              How your focus has moved through the week
+            </p>
+
+          </div>
+
+
+          <div className="trend-score">
+
+            <span>
+              TODAY
+            </span>
+
+            <strong>
+              {productivity}%
+            </strong>
+
+          </div>
+
+        </div>
+
+
+        <div className="trend-chart">
+
+          <ResponsiveContainer
+            width="100%"
+            height="100%"
+          >
+
+            <AreaChart
+              data={weeklyTrend}
+              margin={{
+                top: 10,
+                right: 10,
+                left: -20,
+                bottom: 0,
+              }}
+            >
+
+              <defs>
+
+                <linearGradient
+                  id="productivityGradient"
+                  x1="0"
+                  y1="0"
+                  x2="0"
+                  y2="1"
+                >
+
+                  <stop
+                    offset="0%"
+                    stopColor="#10b981"
+                    stopOpacity={0.3}
+                  />
+
+                  <stop
+                    offset="100%"
+                    stopColor="#10b981"
+                    stopOpacity={0}
+                  />
+
+                </linearGradient>
+
+              </defs>
+
+              <CartesianGrid
+                strokeDasharray="3 3"
+                vertical={false}
+                stroke="#232c3a"
+              />
+
+              <XAxis
+                dataKey="name"
+                axisLine={false}
+                tickLine={false}
+                tick={{
+                  fontSize: 10,
+                  fill: "#a3aec2",
+                }}
+              />
+
+              <YAxis
+                domain={[0, 100]}
+                hide
+              />
+
+              <Tooltip
+                contentStyle={{
+                  background: "#131a24",
+                  border:
+                    "1px solid #232c3a",
+                  borderRadius: "9px",
+                  fontSize: "10px",
+                  color: "#edf1f7",
+                }}
+                formatter={(value) => [
+                  `${Math.round(value)}%`,
+                  "Productivity",
+                ]}
+              />
+
+              <Area
+                type="monotone"
+                dataKey="value"
+                stroke="#10b981"
+                strokeWidth={2.5}
+                fill="url(#productivityGradient)"
+                animationDuration={1300}
+                dot={{
+                  r: 3,
+                  fill: "#10b981",
+                  strokeWidth: 0,
+                }}
+                activeDot={{
+                  r: 5,
+                }}
+              />
+
+            </AreaChart>
+
+          </ResponsiveContainer>
+
+        </div>
+
+
+        <div className="trend-bottom">
+
+          <div>
+
+            <span className="trend-dot"></span>
+
+            <span>
+              Current productivity
+            </span>
+
+          </div>
+
+          <strong>
+            {productivity}% efficiency
+          </strong>
+
+        </div>
+
+      </section>
+
+      <section className="dashboard-insights">
+
+
+        <InsightCard
+          icon="✓"
+          title="Focused work"
+          value={formatShortDuration(
+            productive
+          )}
+          description="Time spent productively"
+          type="success"
+        />
+
+
+        <InsightCard
+          icon="◌"
+          title="Idle time"
+          value={formatShortDuration(
+            idle
+          )}
+          description="Time away from activity"
+          type="warning"
+        />
+
+
+        <InsightCard
+          icon="!"
+          title="Distractions"
+          value={formatShortDuration(
+            nonProductive
+          )}
+          description="Non-productive activity"
+          type="danger"
+        />
+
+
+        <InsightCard
+          icon="↗"
+          title="Efficiency"
+          value={`${productivity}%`}
+          description="Overall productivity score"
+          type="primary"
+        />
+
+      </section>
+
+      <div className="dashboard-agent-banner">
+
+        <div className="agent-banner-icon">
+          ✦
+        </div>
+
+        <div className="agent-banner-content">
+
+          <strong>
+            Keep your desktop agent running
+          </strong>
+
+          <span>
+            Track active apps, idle time and productivity
+            automatically while you work.
+          </span>
+
+        </div>
+
+        <Link
+          to="/download-agent"
+          className="agent-banner-button"
+        >
+          Manage Agent
+          <span>
+            →
+          </span>
+        </Link>
+
       </div>
+
+    </div>
+  );
+}
+
+function MetricCard({
+  label,
+  value,
+  icon,
+  variant = "",
+  description,
+  progress,
+  delay,
+}) {
+  return (
+    <div
+      className="dashboard-metric-card"
+      style={{
+        animationDelay: delay,
+      }}
+    >
+
+      <div className="metric-card-top">
+
+        <div className="metric-card-label">
+
+          <span
+            className={`metric-card-icon ${variant}`}
+          >
+            {icon}
+          </span>
+
+          <span>
+            {label}
+          </span>
+
+        </div>
+
+        {typeof progress === "number" && (
+          <span className="metric-card-percent">
+            {progress}%
+          </span>
+        )}
+
+      </div>
+
+
+      <strong
+        className={`metric-card-value ${variant}`}
+      >
+        {value}
+      </strong>
+
+
+      <span className="metric-card-description">
+        {description}
+      </span>
+
+
+      {typeof progress === "number" && (
+        <div className="metric-card-progress">
+
+          <div
+            style={{
+              width: `${progress}%`,
+            }}
+          ></div>
+
+        </div>
+      )}
+
+    </div>
+  );
+}
+
+
+
+function ChartLegend({
+  label,
+  value,
+  type,
+}) {
+  return (
+    <div className="chart-legend">
+
+      <div className="chart-legend-label">
+
+        <span
+          className={`chart-legend-dot ${type}`}
+        ></span>
+
+        <span>
+          {label}
+        </span>
+
+      </div>
+
+      <strong>
+        {value}
+      </strong>
+
+    </div>
+  );
+}
+
+
+function MiniStat({
+  label,
+  value,
+  percentage,
+  type,
+}) {
+  return (
+    <div className="mini-stat">
+
+      <div className="mini-stat-top">
+
+        <div className="mini-stat-label">
+
+          <span
+            className={`mini-stat-dot ${type}`}
+          ></span>
+
+          {label}
+
+        </div>
+
+        <strong>
+          {percentage}%
+        </strong>
+
+      </div>
+
+      <div className="mini-stat-bar">
+
+        <div
+          className={type}
+          style={{
+            width: `${percentage}%`,
+          }}
+        ></div>
+
+      </div>
+
+      <span className="mini-stat-value">
+        {value}
+      </span>
+
+    </div>
+  );
+}
+
+
+function InsightCard({
+  icon,
+  title,
+  value,
+  description,
+  type,
+}) {
+  return (
+    <div className="insight-card">
+
+      <div
+        className={`insight-icon ${type}`}
+      >
+        {icon}
+      </div>
+
+      <div className="insight-content">
+
+        <span>
+          {title}
+        </span>
+
+        <strong>
+          {value}
+        </strong>
+
+        <small>
+          {description}
+        </small>
+
+      </div>
+
+      <span className="insight-arrow">
+        →
+      </span>
+
     </div>
   );
 }
